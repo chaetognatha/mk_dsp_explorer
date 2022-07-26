@@ -1,0 +1,47 @@
+This is a web app containing exploratory graphs for spatialomics data. It has been designed while working with
+spatially resolved proteomics and transcriptomic data from the GeoMx DSP.
+
+The main script is app/mk_dash.py but before running it you need to setup an environment,
+this can be done using Conda.
+
+* On Windows you will want to have Conda installed
+* After installing you should be able to find the anaconda prompt
+* Use anaconda prompt to run the specified commands!
+
+Open a terminal in path/to/lc_dash_app and run:
+conda env create -n lc_dash -f env/environment.yml
+
+Next, activate your new environment:
+conda activate lc_dash
+
+In the future you may wish to list your environments:
+conda env list
+
+When you are ready you can run the main app by doing:
+python app/mk_dash.py
+
+After making changes to the app to allow for uploading a dataset
+I realize that it makes most sense if encoding and transforms are done outside
+of the app.
+
+This means that starting from now, it is assumed that all biomarkers are log2 transformed
+and that all relevant factors in the dataset have the proper encoding.
+
+The encoding could be done automatically, but then you may not know what was 0 and
+what was 1, so it is better to do it manually.
+
+Expected data types of the different analyses:
+Parallel plot - categorical data will be transformed to arbitrary numbers
+otherwise colors won't work!
+LMM - binary or ordinal encoding of the fixed effect, continuous values for biomarkers
+Cox - binary, ordinal or continuous - estimates a ratio that is influenced by the order of values
+Correlation - continuous (the idea is to check for correlation of various biomarkers)
+3D UMAP - distance is measured for the biomarkers (continuous logscale) could be improved
+to not be so sensitive about strings for coloring clusters.
+
+To facilitate easier setup, there is now a configuration file, conf.ini that keeps
+track of initial settings for the program, these settings are loaded once at startup and changes
+will persist for the runtime of the program.
+
+You may want to have sample identifiers in the first column and biomarker readout columns grouped together in your
+dataset.

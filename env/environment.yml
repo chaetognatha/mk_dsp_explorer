@@ -1,0 +1,16 @@
+name: lc_dash_app
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pandas
+  - dash
+  - dash-bio
+  - dash-bootstrap-components
+  - matplotlib
+  - seaborn
+  - lifelines
+  - umap-learn
+prefix: /home/mattis/anaconda3/envs/lc_dash_app
