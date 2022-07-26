@@ -29,8 +29,6 @@ def split_df(df, a, b, by='colname'):
 def univariate_cox_regression(df, biomarker, time_col, event_col, patient_id_col):
     """
     perform cox regression on a single biomarker
-    TODO: eliminate all but one variable that goes into the cox regression
-        then map the regression analyses on parallel processes
     :param df: pandas dataframe
     :param biomarker: pandas series / column
     :param time_col: see survival
@@ -83,6 +81,3 @@ def survival(df, time, status, patient_id, a=0.05, l1_ratio=0.9):
             )
     return cph
 
-# TODO: make function that takes a dataframe and a list of covariates (bio-
-#    markers and does one cox regression per biomarker, then returns their
-#    coefficients and p-values if significant

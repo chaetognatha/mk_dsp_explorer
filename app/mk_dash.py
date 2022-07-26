@@ -316,13 +316,23 @@ def dynamic_layout(df, db):
             html.Div(children=[
                 # Parallel plot
                 html.H2(children='Parallel plot'),
-                html.Label('Select all factors to show:'),
-                dcc.Dropdown(db['biomarkers'] + db['factors'],
-                             db['factors'][0], id='dd-pp',
-                             multi=True, persistence=True),
-                html.Label('Select which factor to use for color:'),
-                dcc.Dropdown(db['biomarkers'] + db['factors'],
-                             db['factors'][0], id='color-pp', persistence=True),
+                # dbc layout grid
+                dbc.Row([
+                    dbc.Col(html.Div([
+                                html.Label('Select all factors to show:'),
+                                dcc.Dropdown(db['biomarkers'] + db['factors'],
+                                db['factors'][0], id='dd-pp',
+                                multi=True, persistence=True),
+                    ]), width="auto"),
+
+                    dbc.Col(html.Div([
+                            html.Label('Select which factor to use for color:'),
+                            dcc.Dropdown(db['biomarkers'] + db['factors'],
+                            db['factors'][0], id='color-pp', persistence=True),
+                    ]), width="auto"),
+                    ]),
+
+
                 dcc.Graph(id='pp'),
                 html.Hr(),
             ]),
@@ -331,18 +341,30 @@ def dynamic_layout(df, db):
                 html.Div([
                     # TITLE / TEXT
                     html.H2(children='Interactive scatterplot'),
-                    html.Div(children=[
+                    dbc.Row([
+                        dbc.Col(
+                            html.Div(children=[
 
-                        html.Label('Select factor'),
-                        # DROPDOWN 1
-                        dcc.Dropdown(db['biomarkers'], db['biomarkers'][0],
-                                     id='1', persistence=True),
+                                html.Label('Select factor'),
+                                # DROPDOWN 1
+                                dcc.Dropdown(db['biomarkers'],
+                                             db['biomarkers'][0],
+                                             id='1', persistence=True),
 
-                        html.Label('Select factor'),
-                        # DROPDOWN 2
-                        dcc.Dropdown(db['biomarkers'], db['biomarkers'][1],
-                                     id='2', persistence=True),
-                    ], style=btnstyle),
+
+                            ]), width=3
+                        ),
+                        dbc.Col(
+                          html.Div([
+                              html.Label('Select factor'),
+                              # DROPDOWN 2
+                              dcc.Dropdown(db['biomarkers'],
+                                           db['biomarkers'][1],
+                                           id='2', persistence=True),
+                          ]), width=3
+                        ),
+                    ]),
+
 
                     # PLOT
                     html.Div([dcc.Graph(id='scatter-plot'), ], style=pltstyle),
@@ -352,12 +374,16 @@ def dynamic_layout(df, db):
                 # UMAP #############################################################
                 html.Div([
                     html.H2(children='UMAP'),
-                    html.Div([
-                        html.Label('Select grouping factor:'),
-                        html.Div([
+                    dbc.Row([
+                        dbc.Col(
+                            html.Div([
+                            html.Label('Select grouping factor:'),
                             dcc.Dropdown(db['factors'], id='umap_factor',
-                                         persistence=True),
-                        ], style=btnstyle),
+                                         persistence=True)
+                    ]), width=3)
+                    ]),
+                    ]),
+
 
                         html.Label('Select a minimum distance:'),
                         html.Div([
@@ -369,34 +395,40 @@ def dynamic_layout(df, db):
                         ], style=sldstyle),
 
                         html.Label('Select how many nearest neighbors:'),
-                        html.Div(
-                            [dcc.Slider(id='n_neighbor',
+                        html.Div([
+                            dcc.Slider(id='n_neighbor',
                                         min=2,
                                         max=25,
                                         step=1,
-                                        value=2), ],
-                            style=sldstyle),
-
-                    ]),
+                                        value=2), ], style=sldstyle) ]),
 
                     html.Div([dcc.Graph(id='umap'), ], style=pltstyle),
 
-                ]),
-            ]),
-            html.Hr(),
+
+                html.Hr(),
 
             # VOLCANO PLOT #####################################################
             html.Div([
                 html.H2(children='Linear Mixed Model Regression'),
+                dbc.Row([
+                    dbc.Col(
+                        html.Div([
+                            html.Label('Select Fixed Effect'),
+                            dcc.Dropdown(db['factors'], id='fixed_effect',
+                                         persistence=True),
+                        ]), width=3
+                    ),
+                    dbc.Col(
+                        html.Div([
+                            html.Label('Adjust p-value?'),
+                            dcc.RadioItems(
+                                ['Unadj. p', 'FDR adj. p'],
+                                'FDR adj. p', id='use-fdr',
+                                inline=False),
+                        ]), width=3
+                    ),
+                ]),
                 html.Div([
-                    # SWITCHES AND FLICKS
-                    html.Label('Select Fixed Effect'),
-                    dcc.Dropdown(db['factors'], id='fixed_effect',
-                                 persistence=True),
-                    dcc.RadioItems(
-                        ['Unadj. p', 'FDR adj. p'],
-                        'FDR adj. p', id='use-fdr',
-                        inline=True),
                     html.Label('Select p-value limit'),
                     html.Div(
                         [dcc.Slider(0.001, 1, 0.05, value=0.05, id='lmm-plim',
@@ -419,25 +451,40 @@ def dynamic_layout(df, db):
 
             ]),
             html.Hr(),
-            # COX REGRESSION ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     # COX REGRESSION ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
             html.Div([
                 html.H2(children='Cox regression results'),
                 html.Br(),
-                html.Div([
-                    # TIME
-                    html.Div(['Time']),
-                    dcc.Dropdown(db['factors'], id='time', persistence=True),
-                    # EVENT
-                    html.Div(['Event']),
-                    dcc.Dropdown(db['factors'], id='event', persistence=True),
-                    dcc.RadioItems(
-                        ['Unadj. p', 'FDR adj. p'],
-                        'FDR adj. p', id='cox-use-fdr',
-                        inline=True),
-                ], style=btnstyle),
-                dcc.Dropdown(db['factors'] + db['biomarkers'], db['biomarkers'],
-                             id='covariates', multi=True, style=sldstyle,
-                             persistence=True),
+
+                dbc.Row([
+                    dbc.Col(
+                        html.Div([
+                            # TIME
+                            html.Div(['Time']),
+                            dcc.Dropdown(db['factors'], id='time',
+                                         persistence=True),
+                        ]), width=3
+                    ),
+                    dbc.Col(
+                        html.Div([
+                            # EVENT
+                            html.Div(['Event']),
+                            dcc.Dropdown(db['factors'], id='event',
+                                         persistence=True),
+                        ]), width=3
+                    ),
+                    dbc.Col(
+                        html.Div([
+                            dcc.Dropdown(db['factors'] + db['biomarkers'],
+                                         db['biomarkers'],
+                                         id='covariates', multi=True,
+                                         style=sldstyle,
+                                         persistence=True),
+                        ]), width=3
+                    ),
+                ]),
+
+
                 html.Br(),
                 html.Label('Select p-value limit'),
                 html.Div([dcc.Slider(0.001, 1, 0.05, value=0.05, id='cox-plim',
@@ -487,22 +534,21 @@ def parallel_plot(dd, df, db, c):
             # literally all other plotting functions and just
             # map colors without complaining :(
             if df[c].dtype == object:
-                df[c] = df[c].map({name: i for i, name in enumerate(df[c].unique())})
+                df[c] = df[c].map({name: i for i,
+                                               name in enumerate(
+                    df[c].unique()
+                )})
             for d in dd:
                 if df[d].dtype == object:
-                    df[d] = df[d].map({name: i for i, name in enumerate(df[d].unique())})
+                    df[d] = df[d].map({name: i for i,
+                                                   name in enumerate(
+                        df[d].unique()
+                    )})
             fig = px.parallel_coordinates(df, dimensions=dd,
                                           color=c,
-                                          color_continuous_scale=px.colors.diverging.Earth
+                                          color_continuous_scale = \
+                                              px.colors.diverging.Earth
                                           )
-
-            """fig = px.parallel_categories(df,
-                                         dimensions=dd,
-                                         color=df[c].map(
-                                              {name: i for i, name in
-                                               enumerate(df[c])}),
-                                         color_continuous_scale=px.colors.sequential.Inferno
-                                         )"""
 
     return fig
 
@@ -515,7 +561,7 @@ def parallel_plot(dd, df, db, c):
                State('settings', 'data')])
 def scatterplot(value_1, value_2, df, db):
     fig = {}
-    if df:
+    if df and value_1 and value_2:
         df = pd.read_json(df)
         all_together = f"{value_1}{value_2}{df}{db}"
         cached_path = cache.joinpath(cache_hash(all_together))
@@ -647,17 +693,14 @@ def volcano(fixed_effect, plim, effects, df, db, fdr):
                Input('cox-plim', 'value'),
                Input('cox-effects', 'value'),
                Input('dataframe', 'data'),
-               State('settings', 'data'),
-               Input('cox-use-fdr', 'value')])
-def univariate_cox(covariates, time, event, plim, effects, df, db, fdr):
+               State('settings', 'data'),])
+def univariate_cox(covariates, time, event, plim, effects, df, db):
     fig = {}
     if df and time and event:
         df = pd.read_json(df)
-        if fdr == 'FDR adj. p':
-            my_p = 'FDR'
-        else: my_p = 'p-value'
+        my_p = 'p-value'
         # generate hash
-        all_ingoing = f"{covariates}{time}{event}{plim}{effects}{df}{db}{fdr}"
+        all_ingoing = f"{covariates}{time}{event}{plim}{effects}{df}{db}"
         cached_path = cache.joinpath(cache_hash(all_ingoing))
         # load pre-generated data
         if cached_path.exists():
@@ -688,7 +731,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db, fdr):
                                   'p-value': float(summary.values[:, 1])}
             results = pd.DataFrame(results).transpose()
             results = results.rename_axis("biomarker").reset_index()
-            results['FDR'] = fdr(results['p-value'], alpha=0.05)[1]
+            #results['FDR'] = fdr(results['p-value'], alpha=0.05)
             results.to_csv(cached_path)
 
         fig = px.bar(results.loc[((results['exp(coef)'] >= effects[1]) |
