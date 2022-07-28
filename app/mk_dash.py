@@ -56,6 +56,23 @@ def cache_hash(string):
     bstr = bytes(string, 'UTF-8')
     return md5(bstr).hexdigest()
 
+class PrettyDict:
+    """
+    This class is used to make dictionaries more readable
+    """
+    def __init__(self, d):
+        self.d = d
+
+    def __repr__(self):
+        for k, v in self.d.items():
+            # single column
+            if type(v) is list:
+                my_str = f'{k}:\n' + '\n'.join(v)
+            else:
+                my_str = f'{k}:\n{v}\n'
+        return my_str
+
+
 
 def restart():
     """
@@ -71,7 +88,7 @@ def restart():
 
 
 def parse_contents(contents, filename, date):
-    illegal_chars = re.compile(r'[#@&\s,.-]')
+    illegal_chars = re.compile(r'[#@&\s,.\-+]')
     """
 
     Parameters
@@ -105,7 +122,8 @@ def parse_contents(contents, filename, date):
     except Exception as e:
         print(e)
         return html.Div([
-            'There was an error processing this file.'
+            '''There was an error processing this file.
+            Try using an .xlsx or .csv file.'''
         ])
 
     return df
@@ -124,46 +142,50 @@ app.layout = html.Div(children=[
 
     ################################### SETTINGS POPUP ########################
     html.Div([
-        html.Div([
-            dbc.Button("Settings (Start Here)", id="open", n_clicks=0),
-            dbc.Modal(
-                [
-                    dbc.ModalHeader(dbc.ModalTitle("Settings")),
-                    dbc.ModalBody([
+        dcc.Loading([
+            html.Div([
+                dbc.Button("Settings", id="open", n_clicks=0),
+                dbc.Modal(
+                    [
+                        dbc.ModalHeader(dbc.ModalTitle("Settings")),
+                        dbc.ModalBody([
 
-                        dcc.Upload(id='data_upload',
-                                   children=html.Div([
-                                       'Drag and Drop or ',
-                                       html.A('Select a File')
-                                   ],
-                                       style={'width': '100%',
-                                              'height': '60px',
-                                              'lineHeight': '60px',
-                                              'borderWidth': '1px',
-                                              'borderStyle': 'dashed',
-                                              'borderRadius': '5px',
-                                              'textAlign': 'center'}),
-                                   ),
-                        html.Div([
+                            dcc.Upload(id='data_upload',
+                                       children=html.Div([
+                                           'Drag and Drop or ',
+                                           html.A('Select a File')
+                                       ],
+                                           style={'width': '100%',
+                                                  'height': '60px',
+                                                  'lineHeight': '60px',
+                                                  'borderWidth': '1px',
+                                                  'borderStyle': 'dashed',
+                                                  'borderRadius': '5px',
+                                                  'textAlign': 'center'}),
+                                       ),
+                            html.Div([
+                            ]),
+
+                            dcc.Loading(html.Div(id='settings-out')),
                         ]),
-                        html.Div(id='settings-out')
-                    ]),
-                    dbc.ModalFooter(
-                        dbc.Button(
-                            "Close", id="close", className="ms-auto", n_clicks=0
-                        )
-                    ),
-                ],
-                id="modal",
-                is_open=True,
-                size='lg',
-                fullscreen="lg-down",
-                centered=True,
+                        dbc.ModalFooter(
+                            dbc.Button(
+                                "OK", id="close", className="ms-auto",
+                                n_clicks=0
+                            )
+                        ),
+                    ],
+                    id="modal",
+                    is_open=True,
+                    size='lg',
+                    fullscreen="lg-down",
+                    centered=True,
 
+                ),
+                # here's how to format dbc elements
+            ], className="d-grid gap-2 d-md-flex justify-content-md-end",
             ),
-            # here's how to format dbc elements
-        ], className="d-grid gap-2 d-md-flex justify-content-md-end",
-        ),
+        ])
     ]),
 
     html.Hr(),
@@ -194,16 +216,22 @@ def toggle_modal(n1, n2, is_open):
 
 
 # xxxxxxxxxxxxxxxxxxxxxxxxxxx DATA UPLOAD xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-@app.callback(Output('dataframe', 'data'),
+@app.callback(
+              Output('dataframe', 'data'),
               Input('data_upload', 'contents'),
               State('data_upload', 'filename'),
-              State('data_upload', 'last_modified'))
-def update_df(list_of_contents, list_of_names, list_of_dates):
-    if list_of_contents is not None:
+              State('data_upload', 'last_modified'),
+              State('dataframe', 'data'),
+              State('settings', 'data')
+              )
+def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
+    if list_of_contents:
         # empty cache
         for p in cache.glob('*'):
             p.unlink()
+        # parse contents
         df = parse_contents(list_of_contents, list_of_names, list_of_dates)
+
         return df.to_json()
 
 
@@ -228,10 +256,46 @@ def init_settings(df, db):
             html.Div(['Select controls']),
             dcc.Dropdown(db['biomarkers'] + db['controls'], db['controls'],
                          id='controls',
-                         persistence=True, multi=True)
+                         persistence=True, multi=True),
+            # log2 transform biomarkers
+            # auto encode factors output
+            html.Div(id='auto-encode-out'),
         ])
     else:
         return html.Div(['Upload some data!'])
+
+@app.callback(Output('auto-encode-out', 'children'),
+              Input('settings', 'data'),
+              Input('dataframe', 'data'))
+def auto_encode(db, df):
+    if df and db:
+        offenders = []
+        df = pd.read_json(df)
+        for factor in db['factors']:
+            if df[factor].dtype == 'object' and factor != db['patient_id']:
+                offenders.append(factor)
+        if offenders:
+            my_str = f"""
+### Results of automatic factor encoding:
+             
+            """
+            # auto-encode
+            for factor in offenders:
+                cats = pd.Categorical(df[factor])
+                df[factor] = cats.codes
+                expand = '\n\n'.join([f'{i}:\t{cat}' for i, cat in enumerate(cats.categories)])
+                # using markdown double returns to make it look nice
+                my_str += f"""
+#####                          {factor}\n\n{expand}\n\n
+"""
+
+        else: my_str = "No categorical factors found."
+
+        return dcc.Markdown(my_str)
+
+
+
+
 
 
 @app.callback(Output('settings', 'data'),
@@ -263,7 +327,7 @@ def update_config(f, b, p, c, d):
         conf = ConfigParser()
         # read the config file
         conf.read(config_path)
-        illegal_chars = re.compile(r'[#@&\s,.-]')
+        illegal_chars = re.compile(r'[#@&\s,.\-+]')
         # DEFINE A SET OF FACTORS
         # Should default to a list of all columns in global df
         # has to start as empty list
@@ -333,7 +397,7 @@ def dynamic_layout(df, db):
                     ]),
 
 
-                dcc.Graph(id='pp'),
+                dcc.Loading(dcc.Graph(id='pp')),
                 html.Hr(),
             ]),
             html.Div(children=[
@@ -367,7 +431,7 @@ def dynamic_layout(df, db):
 
 
                     # PLOT
-                    html.Div([dcc.Graph(id='scatter-plot'), ], style=pltstyle),
+                    dcc.Loading(html.Div([dcc.Graph(id='scatter-plot'), ], style=pltstyle)),
 
                 ]),
                 html.Hr(),
@@ -447,8 +511,7 @@ def dynamic_layout(df, db):
                     marks={i: {'label': str(i)} for i in range(-3, 3)},
                     value=[-1, 1]
                 ), ], style=sldstyle),
-                html.Div([dcc.Graph(id='volcano_plot'), ], style=pltstyle),
-
+                dcc.Loading(html.Div([dcc.Graph(id='volcano_plot')], style=pltstyle)),
             ]),
             html.Hr(),
      # COX REGRESSION ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -475,14 +538,15 @@ def dynamic_layout(df, db):
                     ),
                     dbc.Col(
                         html.Div([
+                            html.Label('Select covariants for univariate cox regression:'),
                             dcc.Dropdown(db['factors'] + db['biomarkers'],
                                          db['biomarkers'],
                                          id='covariates', multi=True,
                                          style=sldstyle,
                                          persistence=True),
-                        ]), width=3
+                        ]), width=6
                     ),
-                ]),
+                ], justify='evenly'),
 
 
                 html.Br(),
@@ -503,15 +567,12 @@ def dynamic_layout(df, db):
                     value=[-0.1, 0.1],
                     allowCross=False
                 ), ], style=sldstyle),
-                html.Div([dcc.Graph(id='cox_plot'), ], style=pltstyle),
+               dcc.Loading(html.Div([dcc.Graph(id='cox_plot')], style=pltstyle)),
 
             ])
         ])
     else:
-        return html.Div(['Waiting for data upload!\nDon\'t forget to use'
-                         ' clean, transformed and encoded data - check'
-                         ' README for instructions on how to format '
-                         'your data!'])
+        return html.Div(['No DATA (check settings)'])
 
 
 ######################## Paralell plot callback
@@ -544,10 +605,11 @@ def parallel_plot(dd, df, db, c):
                                                    name in enumerate(
                         df[d].unique()
                     )})
+                    # works well for more than 2 dimensions: px.colors.qualitative.Light24
             fig = px.parallel_coordinates(df, dimensions=dd,
                                           color=c,
                                           color_continuous_scale = \
-                                              px.colors.diverging.Earth
+                                              px.colors.diverging.Earth,
                                           )
 
     return fig
@@ -574,7 +636,10 @@ def scatterplot(value_1, value_2, df, db):
             fig = px.scatter(df, x=value_1, y=value_2, title=txt,
                              # trendline='ols',
                              color=db['patient_id'],
-                             hover_name=db['patient_id'])
+                             color_continuous_scale=px.colors.qualitative.Light24,
+                             color_discrete_sequence=px.colors.qualitative.Light24,
+                             hover_name=db['patient_id'],
+                             )
 
             pickle.dump(fig, open(cached_path, 'wb'))
 
@@ -605,9 +670,9 @@ def get_umap(factor, min_dist, n_neighbor, df, db):
         fig = px.scatter_3d(
             proj_3d, x=0, y=1, z=2,
             color=df[factor], labels={'color': factor},
-            color_discrete_sequence='Light24',
-            color_discrete_map='Light24',
-            color_continuous_scale='Viridis',
+            color_continuous_scale='Earth',
+            color_continuous_midpoint=0,
+            color_discrete_sequence=px.colors.qualitative.Alphabet,
             opacity=0.7
         )
 
@@ -696,12 +761,15 @@ def volcano(fixed_effect, plim, effects, df, db, fdr):
                State('settings', 'data'),])
 def univariate_cox(covariates, time, event, plim, effects, df, db):
     fig = {}
-    if df and time and event:
+    if df and time and event and covariates:
         df = pd.read_json(df)
         my_p = 'p-value'
         # generate hash
         all_ingoing = f"{covariates}{time}{event}{plim}{effects}{df}{db}"
         cached_path = cache.joinpath(cache_hash(all_ingoing))
+        # someone might get the idea to input survival time or
+        # event time as covariates, but this is not allowed
+        covariates = [c for c in covariates if c != time and c != event]
         # load pre-generated data
         if cached_path.exists():
             results = pd.read_csv(cached_path)
@@ -713,22 +781,32 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
             df.dropna(subset=covariates, inplace=True)
             for label in covariates:
                 cph = CoxPHFitter()
-                cph.fit(df,
-                        time,
-                        event_col=event,
-                        cluster_col=cluster,
-                        formula=f'{label}'
-                        )
-                summary = cph.summary.loc[:, ['exp(coef)', 'p']]
+                try:
+                    cph.fit(df,
+                            time,
+                            event_col=event,
+                            cluster_col=cluster,
+                            formula=f'{label}'
+                            )
+                    summary = cph.summary.loc[:, ['exp(coef)', 'p']]
+                except Exception as e:
+                    print(e)
                 # in the current version we are taking e ^ coef
                 # which can be turned into a percentual change in hazard
                 # if female = 1, and the hazard(female)/hazard(male) =
                 # 2 then females are twice as likely to die as males
                 # or 2 - 1 = 100% more likely to die at any time t
-                results[label] = {'exp(coef)': float(summary.values[:, 0]),
-                                  'hazard %': (float(
-                                      summary.values[:, 0]) - 1) * 100,
-                                  'p-value': float(summary.values[:, 1])}
+                try:
+                    results[label] = {'exp(coef)': float(summary.values[:, 0]),
+                                      'hazard %': (float(summary.values[:, 0]) - 1) * 100,
+                                      'p-value': float(summary.values[:, 1])}
+                except Exception as e:
+                    print(e)
+                    # sometimes the model does not converge
+                    # setting results to 0 and p to 1
+                    results[label] = {'exp(coef)': 0,
+                                      'hazard %': 0,
+                                      'p-value': 1}
             results = pd.DataFrame(results).transpose()
             results = results.rename_axis("biomarker").reset_index()
             #results['FDR'] = fdr(results['p-value'], alpha=0.05)
