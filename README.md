@@ -1,6 +1,8 @@
 # What this app does:
-This is a web app containing exploratory graphs for spatialomics data. It has been designed while working with
-spatially resolved proteomics and transcriptomic data from the GeoMx DSP but will draw
+This is a web app containing exploratory graphs for spatialomics data. 
+It has been designed while working with
+spatially resolved proteomics and transcriptomic data from the GeoMx DSP 
+but will draw
 5 interactive plots on any dataset that you give it. The plots are:
 * A parallel coordinates plot of the selected columns
 * A scatter plot of the data (with spearman's rho and p-value)
@@ -10,20 +12,22 @@ spatially resolved proteomics and transcriptomic data from the GeoMx DSP but wil
 
 # Quick start:
 The main script is app/mk_dash.py but before running it you need to setup an environment,
-this can be done using Conda.
+this can be done using [Conda](https://conda.io/docs/user-guide/install/index.html).
 
 ## Windows users:
 * After installing find the anaconda prompt
 * Use anaconda prompt to run the specified commands!
 
-### Linux users:
-* You know what to do! :)
+### Linux and mac users:
+* You know what to do! :) 
 
-## Open a terminal in path/to/lc_dash_app and run:
-```conda env create -n lc_dash -f env/environment.yml```
+_(if you don't: look for the link to conda docs above!)_
+
+## Open a terminal in path/to/mk_dsp_explorer and run:
+```conda env create -n dashenv -f env/environment.yml```
 
 ## Next, activate your new environment:
-```conda activate lc_dash```
+```conda activate dashenv```
 
 * In the future you may wish to list your environments:
 ```conda env list```
@@ -72,5 +76,4 @@ Some really top notch python libraries that go into making this app work are:
 [scikit-learn](https://scikit-learn.org/)
 
 
-Hope I didn't leave anyone out!
 
