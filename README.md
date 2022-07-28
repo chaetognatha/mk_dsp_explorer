@@ -16,6 +16,9 @@ this can be done using Conda.
 * After installing find the anaconda prompt
 * Use anaconda prompt to run the specified commands!
 
+### Linux users:
+* You know what to do! :)
+
 ## Open a terminal in path/to/lc_dash_app and run:
 ```conda env create -n lc_dash -f env/environment.yml```
 
@@ -47,15 +50,27 @@ to not be so sensitive about strings for coloring clusters.
 
 # Acknowledgements:
 Some really top notch python libraries that go into making this app work are:
+
+[Conda](https://conda.io/)
+
 [Lifelines for Python](https://lifelines.readthedocs.io/en/latest/)
+
 [Dash](https://dash.plot.ly/dash-core-components)
+
 [Dash Bootstrap Components](https://dash-bootstrap-components.readthedocs.io/en/latest/)
+
 [Plotly Dash](https://plotly.com/dash/)
+
 [Plotly](https://plotly.com/)
+
 [Numpy](https://numpy.org/)
+
 [Pandas](https://pandas.pydata.org/)
+
 [Statsmodels](https://www.statsmodels.org/)
+
 [scikit-learn](https://scikit-learn.org/)
+
 
 Hope I didn't leave anyone out!
 
