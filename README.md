@@ -32,10 +32,12 @@ _(if you don't: look for the link to conda docs above!)_
 * In the future you may wish to list your environments:
 ```conda env list```
 
-NEW: conf.ini contains list of the columns you want to start with, see Notes.
-This file can be updated with your favorite text editor!
-This alters the initial state of the app, which also includes
-means of including more columns and reassigning them in the app itself.
+## Configuration 
+Many things can be done via the settings inside the app, but you should probably start by opening conf.ini and editing it. This is a simple text configuration file which defines e.g a list of biomarkers to use.
+
+Lists are separated with commas eg: "gene,gene2,gene3"
+
+It also includes switches for autoencoding and log2 tranformation so if you dont want categorical columns to be numerically encoded and or you have already log2 transformed your biomarkers, you need to set these to 0, No or False. Default is True.
 
 ## When you are ready you can run the main app by doing:
 ```python app/mk_dash.py```

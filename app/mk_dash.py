@@ -86,6 +86,47 @@ def restart():
     sys.stdout.flush()
     os.execv(sys.argv[0], sys.argv)
 
+def get_config():
+    config_path = Path('conf.ini')
+    conf = ConfigParser()
+    # read the config file
+    conf.read(config_path)
+    illegal_chars = re.compile(r'[#@&\s,.\-+]')
+    # DEFINE A SET OF FACTORS
+    # Should default to a list of all columns in global df
+    # has to start as empty list
+    # can be replaced with factors from settings popup!
+    factors = conf['Settings']['factors'].split(',')
+    # also empty list, update after uploading data or in settings
+    biomarkers = conf['Settings']['biomarkers'].split(',')
+    # another really important global
+    pat_id = conf['Settings']['patient_id']
+    # controls need to be scrubbed from dataframe
+    controls = conf['Settings']['controls'].split(',')
+    factors = [re.sub(illegal_chars, '', f) for f in factors]
+    biomarkers = [re.sub(illegal_chars, '', b) for b in biomarkers]
+    pat_id = re.sub(illegal_chars, '', pat_id)
+    controls = [re.sub(illegal_chars, '', c) for c in controls]
+    biomarkers = [b for b in biomarkers if b not in controls]
+    all_factors = []
+    all_factors.extend(pat_id)
+    all_factors.extend(factors)
+    all_factors.extend(biomarkers)
+    auto_encode = conf.getboolean('Settings', 'encode_factors')
+    auto_transform = conf.getboolean('Settings', 'transform_biomarkers')
+    # init state make dict from config file
+    d = {
+        'factors': factors,
+        'biomarkers': biomarkers,
+        'controls': controls,
+        'patient_id': pat_id,
+        'all': all_factors,
+        'encode_factors': auto_encode,
+        'transform_biomarkers': auto_transform
+    }
+
+    return d
+
 
 def parse_contents(contents, filename, date):
     illegal_chars = re.compile(r'[#@&\s,.\-+]')
@@ -114,26 +155,55 @@ def parse_contents(contents, filename, date):
             # CLEAN
             df.columns = df.columns.str.replace(illegal_chars, '',
                                                 regex=True)
+
+        elif filename.endswith('.tsv'):
+            # Assume that the user uploaded a TSV file
+            df = pd.read_csv(
+                io.StringIO(decoded.decode('utf-8')),
+                delimiter='\t')
+            # CLEAN
+            df.columns = df.columns.str.replace(illegal_chars, '',
+                                                regex=True)
+
         elif filename.endswith('.xlsx'):
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(decoded))
             df.columns = df.columns.str.replace(illegal_chars, '',
                                                 regex=True)
+
+        else:
+            # try to identify the filetype
+            fh = io.StringIO(decoded.decode('utf-8'))
+            my_str = fh.read()
+            result = {
+                '\t' : 0,
+                ',' : 0,
+                ';' : 0
+            }
+            for separation_type in result.keys():
+                result[separation_type] = len(my_str.split(separation_type))
+            # find the most common separation character
+            sep = max(result, key=lambda x: result[x])
+            # read in the data
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), sep=sep)
+            # CLEAN
+            df.columns = df.columns.str.replace(illegal_chars, '',
+                                                regex=True)
+
+
     except Exception as e:
-        print(e)
-        return html.Div([
-            '''There was an error processing this file.
-            Try using an .xlsx or .csv file.'''
-        ])
+        print('There was an error reading the uploaded file:\n',e)
+
 
     return df
 
 
 # DASH
 
-app = Dash(__name__, external_stylesheets=[dbc.themes.MATERIA])
-# this option needs to be set to spawn components from callbacks
-app.config.suppress_callback_exceptions = True
+app = Dash(__name__,
+           external_stylesheets=[dbc.themes.MATERIA],
+           suppress_callback_exceptions=True)
+
 
 # &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& APP LAYOUT &&&&&&&&&&&&&&&&&&&&&&&&&
 app.layout = html.Div(children=[
@@ -214,25 +284,44 @@ app.layout = html.Div(children=[
 def toggle_modal(n1, n2, is_open):
     return not is_open if n1 or n2 else is_open
 
-
-# xxxxxxxxxxxxxxxxxxxxxxxxxxx DATA UPLOAD xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-@app.callback(
-              Output('dataframe', 'data'),
-              Input('data_upload', 'contents'),
-              State('data_upload', 'filename'),
-              State('data_upload', 'last_modified'),
-              State('dataframe', 'data'),
-              State('settings', 'data')
+@app.callback(Output('settings', 'data'),
+              Input('factors', 'value'),
+              Input('biomarkers', 'value'),
+              Input('pat-id', 'value'),
+              Input('controls', 'value'),
+              State('settings', 'data'),
               )
-def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
-    if list_of_contents:
-        # empty cache
-        for p in cache.glob('*'):
-            p.unlink()
-        # parse contents
-        df = parse_contents(list_of_contents, list_of_names, list_of_dates)
+def update_config(f, b, p, c, d):
+    """
 
-        return df.to_json()
+    Parameters
+    ----------
+    f : factors
+    b : biomarkers
+    p : patient id
+    c : controls
+    d : settings data
+
+    Returns dictionary that can be stored
+    -------
+
+    """
+    if not d:
+        # store preset values in a config file
+        # be conservative of what to keep here!
+        d = get_config()
+
+    # check which changed
+    if f:
+        # update locally stored app settings
+        d['factors'] = f
+    if b:
+        d['biomarkers'] = b
+    if p:
+        d['patient_id'] = p
+    if c:
+        d['controls'] = c
+    return d
 
 
 @app.callback(Output('settings-out', 'children'),
@@ -257,17 +346,70 @@ def init_settings(df, db):
             dcc.Dropdown(db['biomarkers'] + db['controls'], db['controls'],
                          id='controls',
                          persistence=True, multi=True),
-            # log2 transform biomarkers
+
             # auto encode factors output
             html.Div(id='auto-encode-out'),
+            # download data
+            html.Button("Download CSV", id="btn_csv"),
+            dcc.Download(id="download-dataframe-csv"),
         ])
     else:
         return html.Div(['Upload some data!'])
+
+# xxxxxxxxxxxxxxxxxxxxxxxxxxx DATA UPLOAD xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+@app.callback(
+              Output('dataframe', 'data'),
+              Input('data_upload', 'contents'),
+              State('data_upload', 'filename'),
+              State('data_upload', 'last_modified'),
+              State('dataframe', 'data'),
+              State('settings', 'data'),
+              )
+def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
+    if list_of_contents:
+        # this is the first step in the event chain
+        db = get_config()
+        # empty cache
+        for p in cache.glob('*'):
+            p.unlink()
+        # parse contents
+        df = parse_contents(list_of_contents, list_of_names, list_of_dates)
+        # encode factors
+        if db['encode_factors']:
+            # just do all columns
+            for factor in df.columns:
+                if df[factor].dtype == 'object' and factor != db['patient_id']:
+                    df[factor] = df[factor].astype('category')
+        if db['transform_biomarkers']:
+            try:
+                df.loc[:, db['biomarkers']] = \
+                    df.loc[:, db['biomarkers']].apply(lambda x: np.log2(x))
+            except:
+                # this just means config was not properly edited
+                print('You may have incorrectly specified biomarkers in conf.ini')
+
+
+
+        return df.to_json()
+
+
+
 
 @app.callback(Output('auto-encode-out', 'children'),
               Input('settings', 'data'),
               Input('dataframe', 'data'))
 def auto_encode(db, df):
+    """
+    this callback generates a key for factor encoding
+    Parameters
+    ----------
+    db: database of settings
+    df: dataframe from dcc.Store (json)
+
+    Returns
+    -------
+
+    """
     if df and db:
         offenders = []
         df = pd.read_json(df)
@@ -282,8 +424,12 @@ def auto_encode(db, df):
             # auto-encode
             for factor in offenders:
                 cats = pd.Categorical(df[factor])
-                df[factor] = cats.codes
-                expand = '\n\n'.join([f'{i}:\t{cat}' for i, cat in enumerate(cats.categories)])
+                # this actually happens when the data is loaded
+                #df[factor] = cats.codes
+                expand = '\n\n'.join([f'{i}:\t{cat}' for i,
+                                                    cat in enumerate(
+                        cats.categories
+                    )])
                 # using markdown double returns to make it look nice
                 my_str += f"""
 #####                          {factor}\n\n{expand}\n\n
@@ -293,81 +439,16 @@ def auto_encode(db, df):
 
         return dcc.Markdown(my_str)
 
-
-
-
-
-
-@app.callback(Output('settings', 'data'),
-              Input('factors', 'value'),
-              Input('biomarkers', 'value'),
-              Input('pat-id', 'value'),
-              Input('controls', 'value'),
-              State('settings', 'data')
-              )
-def update_config(f, b, p, c, d):
-    """
-
-    Parameters
-    ----------
-    f : factors
-    b : biomarkers
-    p : patient id
-    c : controls
-    d : settings data
-
-    Returns dictionary that can be stored
-    -------
-
-    """
-    if not d:
-        # store preset values in a config file
-        # be conservative of what to keep here!
-        config_path = Path('conf.ini')
-        conf = ConfigParser()
-        # read the config file
-        conf.read(config_path)
-        illegal_chars = re.compile(r'[#@&\s,.\-+]')
-        # DEFINE A SET OF FACTORS
-        # Should default to a list of all columns in global df
-        # has to start as empty list
-        # can be replaced with factors from settings popup!
-        factors = conf['Settings']['factors'].split(',')
-        # also empty list, update after uploading data or in settings
-        biomarkers = conf['Settings']['biomarkers'].split(',')
-        # another really important global
-        pat_id = conf['Settings']['patient_id']
-        # controls need to be scrubbed from dataframe
-        controls = conf['Settings']['controls'].split(',')
-        factors = [re.sub(illegal_chars, '', f) for f in factors]
-        biomarkers = [re.sub(illegal_chars, '', b) for b in biomarkers]
-        pat_id = re.sub(illegal_chars, '', pat_id)
-        controls = [re.sub(illegal_chars, '', c) for c in controls]
-        biomarkers = [b for b in biomarkers if b not in controls]
-        all_factors = []
-        all_factors.extend(pat_id)
-        all_factors.extend(factors)
-        all_factors.extend(biomarkers)
-        # init state make dict from config file
-        d = {
-            'factors': factors,
-            'biomarkers': biomarkers,
-            'controls': controls,
-            'patient_id': pat_id,
-            'all': all_factors
-        }
-
-    # check which changed
-    if f:
-        # update locally stored app settings
-        d['factors'] = f
-    if b:
-        d['biomarkers'] = b
-    if p:
-        d['patient_id'] = p
-    if c:
-        d['controls'] = c
-    return d
+#Download callback
+@app.callback(
+    Output("download-dataframe-csv", "data"),
+    Input("btn_csv", "n_clicks"),
+    State("dataframe", "data"),
+    prevent_initial_call=True,
+)
+def func(n_clicks, df):
+    df = pd.read_json(df)
+    return dcc.send_data_frame(df.to_csv, "download.csv")
 
 
 # DYNAMIC LAYOUT CALLBACK
@@ -401,7 +482,7 @@ def dynamic_layout(df, db):
                 html.Hr(),
             ]),
             html.Div(children=[
-                # Scatterplot #########################################################
+        # Scatterplot #########################################################
                 html.Div([
                     # TITLE / TEXT
                     html.H2(children='Interactive scatterplot'),
@@ -431,11 +512,13 @@ def dynamic_layout(df, db):
 
 
                     # PLOT
-                    dcc.Loading(html.Div([dcc.Graph(id='scatter-plot'), ], style=pltstyle)),
+                    dcc.Loading(
+                        html.Div([dcc.Graph(id='scatter-plot'), ],
+                                 style=pltstyle)),
 
                 ]),
                 html.Hr(),
-                # UMAP #############################################################
+          # UMAP #############################################################
                 html.Div([
                     html.H2(children='UMAP'),
                     dbc.Row([
@@ -511,7 +594,8 @@ def dynamic_layout(df, db):
                     marks={i: {'label': str(i)} for i in range(-3, 3)},
                     value=[-1, 1]
                 ), ], style=sldstyle),
-                dcc.Loading(html.Div([dcc.Graph(id='volcano_plot')], style=pltstyle)),
+                dcc.Loading(
+                    html.Div([dcc.Graph(id='volcano_plot')], style=pltstyle)),
             ]),
             html.Hr(),
      # COX REGRESSION ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -538,7 +622,8 @@ def dynamic_layout(df, db):
                     ),
                     dbc.Col(
                         html.Div([
-                            html.Label('Select covariants for univariate cox regression:'),
+                            html.Label('Select covariants '
+                                       'for univariate cox regression:'),
                             dcc.Dropdown(db['factors'] + db['biomarkers'],
                                          db['biomarkers'],
                                          id='covariates', multi=True,
@@ -567,12 +652,14 @@ def dynamic_layout(df, db):
                     value=[-0.1, 0.1],
                     allowCross=False
                 ), ], style=sldstyle),
-               dcc.Loading(html.Div([dcc.Graph(id='cox_plot')], style=pltstyle)),
+               dcc.Loading(
+                   html.Div([dcc.Graph(id='cox_plot')], style=pltstyle)),
 
             ])
         ])
     else:
         return html.Div(['No DATA (check settings)'])
+
 
 
 ######################## Paralell plot callback
@@ -605,11 +692,11 @@ def parallel_plot(dd, df, db, c):
                                                    name in enumerate(
                         df[d].unique()
                     )})
-                    # works well for more than 2 dimensions: px.colors.qualitative.Light24
+        # works well for more than 2 dimensions: px.colors.qualitative.Light24
             fig = px.parallel_coordinates(df, dimensions=dd,
                                           color=c,
                                           color_continuous_scale = \
-                                              px.colors.diverging.Earth,
+                                              px.colors.diverging.Spectral,
                                           )
 
     return fig
@@ -636,8 +723,10 @@ def scatterplot(value_1, value_2, df, db):
             fig = px.scatter(df, x=value_1, y=value_2, title=txt,
                              # trendline='ols',
                              color=db['patient_id'],
-                             color_continuous_scale=px.colors.qualitative.Light24,
-                             color_discrete_sequence=px.colors.qualitative.Light24,
+                             color_continuous_scale = \
+                                 px.colors.qualitative.Light24,
+                             color_discrete_sequence = \
+                                 px.colors.qualitative.Light24,
                              hover_name=db['patient_id'],
                              )
 
@@ -670,8 +759,7 @@ def get_umap(factor, min_dist, n_neighbor, df, db):
         fig = px.scatter_3d(
             proj_3d, x=0, y=1, z=2,
             color=df[factor], labels={'color': factor},
-            color_continuous_scale='Earth',
-            color_continuous_midpoint=0,
+            color_continuous_scale=px.colors.diverging.Spectral,
             color_discrete_sequence=px.colors.qualitative.Alphabet,
             opacity=0.7
         )
@@ -798,7 +886,8 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
                 # or 2 - 1 = 100% more likely to die at any time t
                 try:
                     results[label] = {'exp(coef)': float(summary.values[:, 0]),
-                                      'hazard %': (float(summary.values[:, 0]) - 1) * 100,
+                                      'hazard %': (float(summary.values[:, 0]) \
+                                                   - 1) * 100,
                                       'p-value': float(summary.values[:, 1])}
                 except Exception as e:
                     print(e)
@@ -826,4 +915,14 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
+                   dev_tools_ui=None,
+                   dev_tools_props_check=None,
+                   dev_tools_serve_dev_bundles=None,
+                   dev_tools_hot_reload=None,
+                   dev_tools_hot_reload_interval=None,
+                   dev_tools_hot_reload_watch_interval=None,
+                   dev_tools_hot_reload_max_retry=None,
+                   dev_tools_silence_routes_logging=None,
+                   dev_tools_prune_errors=None
+                   )
