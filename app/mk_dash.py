@@ -28,7 +28,8 @@ import sys
 
 # GLOBALS
 
-
+# debug
+dbg = True
 # plot div style
 pltstyle = {'margin': 'auto', 'width': '80%'}
 # buttonstyle
@@ -108,27 +109,27 @@ def get_config():
     pat_id = re.sub(illegal_chars, '', pat_id)
     controls = [re.sub(illegal_chars, '', c) for c in controls]
     biomarkers = [b for b in biomarkers if b not in controls]
-    all_factors = []
-    all_factors.extend(pat_id)
-    all_factors.extend(factors)
-    all_factors.extend(biomarkers)
     auto_encode = conf.getboolean('Settings', 'encode_factors')
     auto_transform = conf.getboolean('Settings', 'transform_biomarkers')
+    encoding = conf['Settings']['encoding']
     # init state make dict from config file
     d = {
         'factors': factors,
         'biomarkers': biomarkers,
         'controls': controls,
         'patient_id': pat_id,
-        'all': all_factors,
         'encode_factors': auto_encode,
-        'transform_biomarkers': auto_transform
+        'transform_biomarkers': auto_transform,
+        'encoding': encoding,
     }
+    if dbg:
+        print(f'get_config out: {d}')
 
     return d
 
 
-def parse_contents(contents, filename, date):
+
+def parse_contents(contents, filename, date, enc='utf-8'):
     illegal_chars = re.compile(r'[#@&\s,.\-+]')
     """
 
@@ -137,6 +138,8 @@ def parse_contents(contents, filename, date):
     contents
     filename
     date
+    enc: encoding of the file, default is utf-8 probably best untouched
+    it seems dash cannot use anything but utf-8
 
     Returns: pandas dataframe
     -------
@@ -151,7 +154,8 @@ def parse_contents(contents, filename, date):
         if filename.endswith('.csv'):
             # Assume that the user uploaded a CSV file
             df = pd.read_csv(
-                io.StringIO(decoded.decode('utf-8')))
+                io.StringIO(decoded.decode(enc, 'ignore')),
+                encoding=enc)
             # CLEAN
             df.columns = df.columns.str.replace(illegal_chars, '',
                                                 regex=True)
@@ -159,8 +163,8 @@ def parse_contents(contents, filename, date):
         elif filename.endswith('.tsv'):
             # Assume that the user uploaded a TSV file
             df = pd.read_csv(
-                io.StringIO(decoded.decode('utf-8')),
-                delimiter='\t')
+                io.StringIO(decoded.decode(enc, 'ignore')),
+                delimiter='\t', encoding=enc)
             # CLEAN
             df.columns = df.columns.str.replace(illegal_chars, '',
                                                 regex=True)
@@ -173,7 +177,7 @@ def parse_contents(contents, filename, date):
 
         else:
             # try to identify the filetype
-            fh = io.StringIO(decoded.decode('utf-8'))
+            fh = io.StringIO(decoded.decode(enc, 'ignore'))
             my_str = fh.read()
             result = {
                 '\t' : 0,
@@ -185,16 +189,21 @@ def parse_contents(contents, filename, date):
             # find the most common separation character
             sep = max(result, key=lambda x: result[x])
             # read in the data
-            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), sep=sep)
+            df = pd.read_csv(io.StringIO(decoded.decode(enc, 'ignore')),
+                             sep=sep, encoding=enc)
             # CLEAN
             df.columns = df.columns.str.replace(illegal_chars, '',
                                                 regex=True)
 
 
     except Exception as e:
-        print('There was an error reading the uploaded file:\n',e)
+        print('parse_contents: There was an error reading the uploaded file:\n',
+              e)
 
-
+    if dbg:
+        print('parse_contents out:')
+        print(f'df is a {type(df)}')
+        print(df.info())
     return df
 
 
@@ -315,37 +324,51 @@ def update_config(f, b, p, c, d):
     if f:
         # update locally stored app settings
         d['factors'] = f
+        if dbg:
+            print(f'update_config: factors: {f}')
     if b:
         d['biomarkers'] = b
+        if dbg:
+            print(f'update_config: biomarkers: {b}')
     if p:
         d['patient_id'] = p
+        if dbg:
+            print(f'update_config: patient_id: {p}')
     if c:
         d['controls'] = c
+        if dbg:
+            print(f'update_config: controls: {c}')
+    if dbg:
+        print(f'update_config: settings: {PrettyDict(d)}')
     return d
 
 
 @app.callback(Output('settings-out', 'children'),
               Input('dataframe', 'data'),
-              State('settings', 'data'))
+              State('settings', 'data'),
+              prevent_initial_call=True,)
 def init_settings(df, db):
-    if df:
+    if df and db:
+        if dbg:
+            print(f'init_settings: df: {df.shape}')
+            print(f'init_settings: db: {PrettyDict(db)}')
         # dataframe is stored as json
         df = pd.read_json(df)
         return html.Div([
             html.Div(['Select biomarkers']),
             dcc.Dropdown(list(df), db['biomarkers'],
                          id='biomarkers',
-                         multi=True, persistence=True),
+                         multi=True, persistence=True, persistence_type='local'),
             html.Div(['Select factor columns']),
             dcc.Dropdown(list(df), db['factors'], id='factors',
-                         multi=True, persistence=True),
+                         multi=True, persistence=True, persistence_type='local'),
             html.Div(['Select column with patient ID']),
             dcc.Dropdown(list(df), db['patient_id'], id='pat-id',
-                         persistence=True),
+                         persistence=True, persistence_type='local'),
             html.Div(['Select controls']),
             dcc.Dropdown(db['biomarkers'] + db['controls'], db['controls'],
                          id='controls',
-                         persistence=True, multi=True),
+                         persistence=True, persistence_type='local', multi=True),
 
             # auto encode factors output
             html.Div(id='auto-encode-out'),
@@ -364,6 +387,7 @@ def init_settings(df, db):
               State('data_upload', 'last_modified'),
               State('dataframe', 'data'),
               State('settings', 'data'),
+              prevent_initial_call=True,
               )
 def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
     if list_of_contents:
@@ -373,22 +397,27 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
         for p in cache.glob('*'):
             p.unlink()
         # parse contents
-        df = parse_contents(list_of_contents, list_of_names, list_of_dates)
+        df = parse_contents(list_of_contents, list_of_names, list_of_dates,
+                            db['encoding'])
         # encode factors
         if db['encode_factors']:
+            if dbg:
+                print('update_df: encoding factors')
             # just do all columns
             for factor in df.columns:
                 if df[factor].dtype == 'object' and factor != db['patient_id']:
                     df[factor] = df[factor].astype('category')
         if db['transform_biomarkers']:
+            if dbg:
+                print('update_df: transforming biomarkers')
             try:
                 df.loc[:, db['biomarkers']] = \
                     df.loc[:, db['biomarkers']].apply(lambda x: np.log2(x))
             except:
                 # this just means config was not properly edited
-                print('You may have incorrectly specified biomarkers in conf.ini')
-
-
+                print('update_df: '
+                      'You may have incorrectly '
+                      'specified biomarkers in conf.ini')
 
         return df.to_json()
 
@@ -397,7 +426,8 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
 
 @app.callback(Output('auto-encode-out', 'children'),
               Input('settings', 'data'),
-              Input('dataframe', 'data'))
+              Input('dataframe', 'data'),
+              prevent_initial_call=True,)
 def auto_encode(db, df):
     """
     this callback generates a key for factor encoding
@@ -429,7 +459,8 @@ def auto_encode(db, df):
                 expand = '\n\n'.join([f'{i}:\t{cat}' for i,
                                                     cat in enumerate(
                         cats.categories
-                    )])
+                    )
+                                      ])
                 # using markdown double returns to make it look nice
                 my_str += f"""
 #####                          {factor}\n\n{expand}\n\n
@@ -454,7 +485,8 @@ def func(n_clicks, df):
 # DYNAMIC LAYOUT CALLBACK
 @app.callback(Output('main', 'children'),
               Input('dataframe', 'data'),
-              Input('settings', 'data'))
+              Input('settings', 'data'),
+              prevent_initial_call=True)
 def dynamic_layout(df, db):
     if df:
         return html.Div([
@@ -467,13 +499,15 @@ def dynamic_layout(df, db):
                                 html.Label('Select all factors to show:'),
                                 dcc.Dropdown(db['biomarkers'] + db['factors'],
                                 db['factors'][0], id='dd-pp',
-                                multi=True, persistence=True),
+                                multi=True, persistence=True,
+                                             persistence_type='local'),
                     ]), width="auto"),
 
                     dbc.Col(html.Div([
                             html.Label('Select which factor to use for color:'),
                             dcc.Dropdown(db['biomarkers'] + db['factors'],
-                            db['factors'][0], id='color-pp', persistence=True),
+                            db['factors'][0], id='color-pp', persistence=True,
+                                         persistence_type='local'),
                     ]), width="auto"),
                     ]),
 
@@ -494,7 +528,8 @@ def dynamic_layout(df, db):
                                 # DROPDOWN 1
                                 dcc.Dropdown(db['biomarkers'],
                                              db['biomarkers'][0],
-                                             id='1', persistence=True),
+                                             id='1', persistence=True,
+                                             persistence_type='local'),
 
 
                             ]), width=3
@@ -505,7 +540,8 @@ def dynamic_layout(df, db):
                               # DROPDOWN 2
                               dcc.Dropdown(db['biomarkers'],
                                            db['biomarkers'][1],
-                                           id='2', persistence=True),
+                                           id='2', persistence=True,
+                                           persistence_type='local'),
                           ]), width=3
                         ),
                     ]),
@@ -526,7 +562,8 @@ def dynamic_layout(df, db):
                             html.Div([
                             html.Label('Select grouping factor:'),
                             dcc.Dropdown(db['factors'], id='umap_factor',
-                                         persistence=True)
+                                         persistence=True,
+                                         persistence_type='local')
                     ]), width=3)
                     ]),
                     ]),
@@ -562,7 +599,8 @@ def dynamic_layout(df, db):
                         html.Div([
                             html.Label('Select Fixed Effect'),
                             dcc.Dropdown(db['factors'], id='fixed_effect',
-                                         persistence=True),
+                                         persistence=True,
+                                         persistence_type='local'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -609,7 +647,8 @@ def dynamic_layout(df, db):
                             # TIME
                             html.Div(['Time']),
                             dcc.Dropdown(db['factors'], id='time',
-                                         persistence=True),
+                                         persistence=True,
+                                         persistence_type='local'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -617,7 +656,7 @@ def dynamic_layout(df, db):
                             # EVENT
                             html.Div(['Event']),
                             dcc.Dropdown(db['factors'], id='event',
-                                         persistence=True),
+                                         persistence=True, persistence_type='local'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -628,7 +667,7 @@ def dynamic_layout(df, db):
                                          db['biomarkers'],
                                          id='covariates', multi=True,
                                          style=sldstyle,
-                                         persistence=True),
+                                         persistence=True, persistence_type='local'),
                         ]), width=6
                     ),
                 ], justify='evenly'),
