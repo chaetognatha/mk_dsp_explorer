@@ -1,0 +1,1 @@
+{"factors": ["Age", "Nuclei_count", "Radical_surgery", "OS", "Progression", "Normalization_factor", "Type_1_2"], "biomarkers": ["CD25", "CD3", "CD56", "GZMB", "PD1", "CTLA4", "S6", "GAPDH"], "controls": ["None"], "patient_id": "Patient_ID", "encode_factors": false, "transform_biomarkers": false, "encoding": "utf-8"}

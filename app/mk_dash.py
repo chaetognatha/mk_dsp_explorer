@@ -1,5 +1,6 @@
 # Run this app with `python mk_dash.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
+from matplotlib.font_manager import json_dump
 from spatialomics_toolkit import statistics
 from statsmodels.stats.multitest import fdrcorrection as fdr
 import numpy as np
@@ -25,6 +26,7 @@ import re
 from configparser import ConfigParser
 import os
 import sys
+import json
 
 # GLOBALS
 
@@ -88,30 +90,30 @@ def restart():
     os.execv(sys.argv[0], sys.argv)
 
 def get_config():
-    config_path = Path('conf.ini')
-    conf = ConfigParser()
-    # read the config file
-    conf.read(config_path)
+    config_path = Path('conf.json')
+    with open(config_path, 'r') as f:
+        conf = json.load(f)
+    # illegal characters
     illegal_chars = re.compile(r'[#@&\s,.\-+]')
     # DEFINE A SET OF FACTORS
     # Should default to a list of all columns in global df
     # has to start as empty list
     # can be replaced with factors from settings popup!
-    factors = conf['Settings']['factors'].split(',')
+    factors = conf['factors']
     # also empty list, update after uploading data or in settings
-    biomarkers = conf['Settings']['biomarkers'].split(',')
+    biomarkers = conf['biomarkers']
     # another really important global
-    pat_id = conf['Settings']['patient_id']
+    pat_id = conf['patient_id']
     # controls need to be scrubbed from dataframe
-    controls = conf['Settings']['controls'].split(',')
+    controls = conf['controls']
     factors = [re.sub(illegal_chars, '', f) for f in factors]
     biomarkers = [re.sub(illegal_chars, '', b) for b in biomarkers]
     pat_id = re.sub(illegal_chars, '', pat_id)
     controls = [re.sub(illegal_chars, '', c) for c in controls]
     biomarkers = [b for b in biomarkers if b not in controls]
-    auto_encode = conf.getboolean('Settings', 'encode_factors')
-    auto_transform = conf.getboolean('Settings', 'transform_biomarkers')
-    encoding = conf['Settings']['encoding']
+    auto_encode = conf['encode_factors']
+    auto_transform = conf['transform_biomarkers']
+    encoding = conf['encoding']
     # init state make dict from config file
     d = {
         'factors': factors,
@@ -127,6 +129,39 @@ def get_config():
 
     return d
 
+def set_config(db):
+    config_file = Path('conf.json')
+    with config_file.open('w') as f:
+        json.dump(db, f)
+    if dbg:
+        print(f'set_config written to file: {db}')
+
+def load_data():
+    """
+    This function reads in the data from the dataframe
+    :return: dataframe
+    -------
+    """
+    df = pd.DataFrame()
+    # read in dataframe
+    try:
+        df = pd.read_csv('.cache/data.csv')
+    except:
+        print('No dataframe found')
+    if dbg:
+        print(f'get_data out: {type(df)}')
+    return df
+
+def save_data(df):
+    """
+    This function writes the dataframe to a csv file
+    :param df: dataframe
+    :return: nothing
+    -------
+    """
+    df.to_csv('.cache/data.csv', index=False)
+    if dbg:
+        print(f'set_data out: {type(df)}')
 
 
 def parse_contents(contents, filename, date, enc='utf-8'):
@@ -139,7 +174,7 @@ def parse_contents(contents, filename, date, enc='utf-8'):
     filename
     date
     enc: encoding of the file, default is utf-8 probably best untouched
-    it seems dash cannot use anything but utf-8
+    it seems dash cannot use anything but utf-8 internally
 
     Returns: pandas dataframe
     -------
@@ -203,7 +238,7 @@ def parse_contents(contents, filename, date, enc='utf-8'):
     if dbg:
         print('parse_contents out:')
         print(f'df is a {type(df)}')
-        print(df.info())
+        print(df.shape)
     return df
 
 
@@ -244,14 +279,17 @@ app.layout = html.Div(children=[
                                        ),
                             html.Div([
                             ]),
-
+                            
                             dcc.Loading(html.Div(id='settings-out')),
                         ]),
                         dbc.ModalFooter(
-                            dbc.Button(
-                                "OK", id="close", className="ms-auto",
-                                n_clicks=0
-                            )
+                            dbc.Row([
+                                dbc.Col(
+                                    html.Div([
+                            dbc.Button("OK", id="close", className="ms-auto", n_clicks=0),
+                            dbc.Button("Reload", id="reload", n_clicks=0),
+                                    ])
+                        )]),
                         ),
                     ],
                     id="modal",
@@ -279,6 +317,8 @@ app.layout = html.Div(children=[
     # settings are initialized with conf.ini but are then
     # updated via the settings in the app
     # it is a dictionary
+    # settings moved to conf.json
+    # keeping this to keep callback alive
     dcc.Store(id='settings', storage_type='local'),
 ], style={'textAlign': 'center'})
 
@@ -287,8 +327,9 @@ app.layout = html.Div(children=[
 # MODAL CALLBACK ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
 @app.callback(
     Output("modal", "is_open"),
-    [Input("open", "n_clicks"), Input("close", "n_clicks")],
-    [State("modal", "is_open")],
+    Input("open", "n_clicks"), 
+    Input("close", "n_clicks"),
+    State("modal", "is_open"),
 )
 def toggle_modal(n1, n2, is_open):
     return not is_open if n1 or n2 else is_open
@@ -298,9 +339,11 @@ def toggle_modal(n1, n2, is_open):
               Input('biomarkers', 'value'),
               Input('pat-id', 'value'),
               Input('controls', 'value'),
+              State('dataframe', 'data'),
               State('settings', 'data'),
+              prevent_initial_call=True
               )
-def update_config(f, b, p, c, d):
+def update_config(factor, biomarker, patid, controls, df, db):
     """
 
     Parameters
@@ -311,49 +354,67 @@ def update_config(f, b, p, c, d):
     c : controls
     d : settings data
 
-    Returns dictionary that can be stored
+    Modifies json file with settings
+    also returns a json object with the settings but this is broken
     -------
 
     """
-    if not d:
+    if not db:
         # store preset values in a config file
         # be conservative of what to keep here!
-        d = get_config()
+        db = get_config()
+        if dbg:
+            print('update_config: no db in memory calling get_config:')
+            print(db)
+    else: 
+        db = json.loads(db)
+        if dbg:
+            print('update_config: db from json:')
+            print(db)
 
     # check which changed
-    if f:
+    if factor:
         # update locally stored app settings
-        d['factors'] = f
+        db['factors'] = factor
         if dbg:
-            print(f'update_config: factors: {f}')
-    if b:
-        d['biomarkers'] = b
+            print(f'update_config: factors: {factor}')
+    if biomarker:
+        db['biomarkers'] = biomarker
         if dbg:
-            print(f'update_config: biomarkers: {b}')
-    if p:
-        d['patient_id'] = p
+            print(f'update_config: biomarkers: {biomarker}')
+    if patid:
+        db['patient_id'] = patid
         if dbg:
-            print(f'update_config: patient_id: {p}')
-    if c:
-        d['controls'] = c
+            print(f'update_config: patient_id: {patid}')
+    if controls:
+        if db['controls'] == 'None':
+            db['controls'] = []
+        else:
+            db['controls'] = controls
         if dbg:
-            print(f'update_config: controls: {c}')
+            print(f'update_config: controls: {controls}')
     if dbg:
-        print(f'update_config: settings: {PrettyDict(d)}')
-    return d
+        print(f'update_config (end): settings: {db}')
+    
+    set_config(db)
+
+    return json.dumps(db)
 
 
-@app.callback(Output('settings-out', 'children'),
-              Input('dataframe', 'data'),
+@app.callback(Output('settings-out', 'children'),             
+              Input("reload", "n_clicks"),
               State('settings', 'data'),
-              prevent_initial_call=True,)
-def init_settings(df, db):
-    if df and db:
+              State('dataframe', 'data'),
+)
+def init_settings(df, n, db):
+    db = get_config()
+    df = load_data()
+    if isinstance(df, pd.DataFrame) and db:
         if dbg:
             print(f'init_settings: df: {df.shape}')
-            print(f'init_settings: db: {PrettyDict(db)}')
+            print(f'init_settings: db: {db}')
         # dataframe is stored as json
-        df = pd.read_json(df)
+        
         return html.Div([
             html.Div(['Select biomarkers']),
             dcc.Dropdown(list(df), db['biomarkers'],
@@ -377,6 +438,8 @@ def init_settings(df, db):
             dcc.Download(id="download-dataframe-csv"),
         ])
     else:
+        if dbg:
+            print(f'init_settings: no df or db: {type(df)} {db}')
         return html.Div(['Upload some data!'])
 
 # xxxxxxxxxxxxxxxxxxxxxxxxxxx DATA UPLOAD xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -387,7 +450,7 @@ def init_settings(df, db):
               State('data_upload', 'last_modified'),
               State('dataframe', 'data'),
               State('settings', 'data'),
-              prevent_initial_call=True,
+              
               )
 def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
     if list_of_contents:
@@ -418,6 +481,8 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
                 print('update_df: '
                       'You may have incorrectly '
                       'specified biomarkers in conf.ini')
+        # store in cache
+        save_data(df)
 
         return df.to_json()
 
@@ -427,7 +492,7 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
 @app.callback(Output('auto-encode-out', 'children'),
               Input('settings', 'data'),
               Input('dataframe', 'data'),
-              prevent_initial_call=True,)
+              )
 def auto_encode(db, df):
     """
     this callback generates a key for factor encoding
@@ -440,9 +505,13 @@ def auto_encode(db, df):
     -------
 
     """
-    if df and db:
+    db = get_config()
+    df = load_data()
+    if isinstance(df, pd.DataFrame) and db['encode_factors']:
+        if dbg:
+            print('auto_encode: encoding factors')
         offenders = []
-        df = pd.read_json(df)
+        #df = pd.read_json(df)
         for factor in db['factors']:
             if df[factor].dtype == 'object' and factor != db['patient_id']:
                 offenders.append(factor)
@@ -476,19 +545,25 @@ def auto_encode(db, df):
     Input("btn_csv", "n_clicks"),
     State("dataframe", "data"),
     prevent_initial_call=True,
+    
 )
 def func(n_clicks, df):
-    df = pd.read_json(df)
+    df = load_data()
     return dcc.send_data_frame(df.to_csv, "download.csv")
 
 
 # DYNAMIC LAYOUT CALLBACK
 @app.callback(Output('main', 'children'),
               Input('dataframe', 'data'),
-              Input('settings', 'data'),
-              prevent_initial_call=True)
+              State('settings', 'data'),
+              )
 def dynamic_layout(df, db):
-    if df:
+    db = get_config()
+    df = load_data()
+    if dbg and isinstance(df, pd.DataFrame):
+        print(f'dynamic_layout: df: {df.shape}')
+        print(f'dynamic_layout: db: {db}')
+    if isinstance(df, pd.DataFrame):
         return html.Div([
             html.Div(children=[
                 # Parallel plot
@@ -709,8 +784,10 @@ def dynamic_layout(df, db):
               Input('color-pp', 'value'))
 def parallel_plot(dd, df, db, c):
     fig = {}
-    if df and len(dd) > 1 and c:
-        df = pd.read_json(df)
+    df = load_data()
+    if isinstance(df, pd.DataFrame)and len(dd) > 1 and c:
+        db = get_config()
+        #df = pd.read_json(df)
         all_together = f"{dd}{df}{db}{c}"
         cached_path = cache.joinpath(cache_hash(all_together))
         if cached_path.exists():
@@ -749,8 +826,10 @@ def parallel_plot(dd, df, db, c):
                State('settings', 'data')])
 def scatterplot(value_1, value_2, df, db):
     fig = {}
-    if df and value_1 and value_2:
-        df = pd.read_json(df)
+    df = load_data()
+    if isinstance(df, pd.DataFrame) and value_1 and value_2:
+        db = get_config()
+        #df = pd.read_json(df)
         all_together = f"{value_1}{value_2}{df}{db}"
         cached_path = cache.joinpath(cache_hash(all_together))
         if cached_path.exists():
@@ -783,8 +862,10 @@ def scatterplot(value_1, value_2, df, db):
               State('settings', 'data'))
 def get_umap(factor, min_dist, n_neighbor, df, db):
     fig = {}
-    if df and factor:
-        df = pd.read_json(df)
+    df = load_data()
+    if isinstance(df, pd.DataFrame) and factor:
+        db = get_config()
+        #df = pd.read_json(df)
         all_together = f"{factor}{min_dist}{n_neighbor}{df}{db}"
         cached_path = cache.joinpath(cache_hash(all_together))
         if cached_path.exists():
@@ -819,9 +900,11 @@ def get_umap(factor, min_dist, n_neighbor, df, db):
                ])
 def volcano(fixed_effect, plim, effects, df, db, fdr):
     fig = {}
-    if df and fixed_effect:
+    df = load_data()
+    if isinstance(df, pd.DataFrame) and fixed_effect:
+        db = get_config()
         my_p = 'FDR' if fdr == 'FDR adj. p' else 'p-values'
-        df = pd.read_json(df)
+        #df = pd.read_json(df)
         # to avoid errors caused by getting inf in neglog10
         if plim == 1:
             plim = 0.9999
@@ -888,8 +971,10 @@ def volcano(fixed_effect, plim, effects, df, db, fdr):
                State('settings', 'data'),])
 def univariate_cox(covariates, time, event, plim, effects, df, db):
     fig = {}
-    if df and time and event and covariates:
-        df = pd.read_json(df)
+    df = load_data()
+    if isinstance(df, pd.DataFrame) and time and event and covariates:
+        db = get_config()
+        #df = pd.read_json(df)
         my_p = 'p-value'
         # generate hash
         all_ingoing = f"{covariates}{time}{event}{plim}{effects}{df}{db}"
@@ -955,8 +1040,8 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
-                   dev_tools_ui=None,
-                   dev_tools_props_check=None,
+                   dev_tools_ui=True,
+                   dev_tools_props_check=True,
                    dev_tools_serve_dev_bundles=None,
                    dev_tools_hot_reload=None,
                    dev_tools_hot_reload_interval=None,
