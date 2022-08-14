@@ -1,6 +1,5 @@
 # Run this app with `python mk_dash.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
-from matplotlib.font_manager import json_dump
 from spatialomics_toolkit import statistics
 from statsmodels.stats.multitest import fdrcorrection as fdr
 import numpy as np
@@ -286,8 +285,12 @@ app.layout = html.Div(children=[
                             dbc.Row([
                                 dbc.Col(
                                     html.Div([
+
                             dbc.Button("OK", id="close", className="ms-auto", n_clicks=0),
                             dbc.Button("Reload", id="reload", n_clicks=0),
+                                                                            # download data
+                            dbc.Button("Download CSV", id="btn_csv"),
+                            dcc.Download(id="download-dataframe-csv"),
                                     ])
                         )]),
                         ),
@@ -433,9 +436,7 @@ def init_settings(df, n, db):
 
             # auto encode factors output
             html.Div(id='auto-encode-out'),
-            # download data
-            html.Button("Download CSV", id="btn_csv"),
-            dcc.Download(id="download-dataframe-csv"),
+
         ])
     else:
         if dbg:
@@ -1039,9 +1040,9 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
-                   dev_tools_ui=True,
-                   dev_tools_props_check=True,
+    app.run_server(debug=False, host='127.0.0.1', port='8050', proxy=None,
+                   dev_tools_ui=None,
+                   dev_tools_props_check=None,
                    dev_tools_serve_dev_bundles=None,
                    dev_tools_hot_reload=None,
                    dev_tools_hot_reload_interval=None,
