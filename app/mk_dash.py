@@ -687,7 +687,8 @@ def dynamic_layout(df, db):
                         html.Div([
                             dcc.Slider(id='n_neighbor',
                                         min=2,
-                                        max=25,
+            # max should be 1/4 * number of rows
+                                        max=df.shape[0]//4,
                                         step=1,
                                         value=2), ], style=sldstyle) ]),
 

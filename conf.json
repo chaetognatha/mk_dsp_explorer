@@ -1,1 +1,33 @@
-{"factors": ["Stage", "Tissue_quality", "WHO_classification", "OS", "PFS", "Epithelial_structure", "Age", "Type_1_2", "Type", "Radical_surgery", "Progression", "CK_level", "Level_immune_infiltration"], "biomarkers": ["CD20", "S6", "GZMB", "CTLA4", "CD56", "CD45", "CD3"], "controls": ["None"], "patient_id": "Patient_ID", "encode_factors": true, "transform_biomarkers": true, "encoding": "utf-8"}
+{
+    "factors": [
+        "Stage",
+        "Tissue_quality",
+        "WHO_classification",
+        "OS",
+        "PFS",
+        "Epithelial_structure",
+        "Age",
+        "Type_1_2",
+        "Type",
+        "Radical_surgery",
+        "Progression",
+        "CK_level",
+        "Level_immune_infiltration"
+    ],
+    "biomarkers": [
+        "CD20",
+        "S6",
+        "GZMB",
+        "CTLA4",
+        "CD56",
+        "CD45",
+        "CD3"
+    ],
+    "controls": [
+        "None"
+    ],
+    "patient_id": "Patient_ID",
+    "encode_factors": true,
+    "transform_biomarkers": true,
+    "encoding": "utf-8"
+}
