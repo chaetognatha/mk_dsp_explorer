@@ -281,6 +281,15 @@ app.layout = html.Div(children=[
                             
                             dcc.Loading(html.Div(id='settings-out')),
                         ]),
+                        dbc.Row([
+                            dbc.Col(
+                            [html.Label('Transform biomarkers: '),
+                            dcc.RadioItems(['Yes', 'No'], 'Yes', id='transform-biomarkers'),
+                            html.Label('Encode factors: '),
+                            dcc.RadioItems(['Yes', 'No'], 'Yes', id='encode-factors'),]
+                            )
+                        ]),
+
                         dbc.ModalFooter(
                             dbc.Row([
                                 dbc.Col(
@@ -342,11 +351,14 @@ def toggle_modal(n1, n2, is_open):
               Input('biomarkers', 'value'),
               Input('pat-id', 'value'),
               Input('controls', 'value'),
+              Input('transform-biomarkers', 'value'),
+              Input('encode-factors', 'value'),
               State('dataframe', 'data'),
               State('settings', 'data'),
               prevent_initial_call=True
               )
-def update_config(factor, biomarker, patid, controls, df, db):
+def update_config(factor, biomarker, patid, 
+                    controls,transbio, encfac, df, db):
     """
 
     Parameters
@@ -396,12 +408,28 @@ def update_config(factor, biomarker, patid, controls, df, db):
             db['controls'] = controls
         if dbg:
             print(f'update_config: controls: {controls}')
+    if transbio == 'Yes':
+        db['transform_biomarkers'] = True
+        if dbg:
+            print(f'update_config: transform_biomarkers: {transbio}')
+    else:
+        db['transform_biomarkers'] = False
+        if dbg:
+            print(f'update_config: transform_biomarkers: {transbio}')
+    if encfac == 'Yes':
+        db['encode_factors'] = True
+        if dbg:
+            print(f'update_config: encode_factors: {encfac}')
+    else:
+        db['encode_factors'] = False
+        if dbg:
+            print(f'update_config: encode_factors: {encfac}')
     if dbg:
         print(f'update_config (end): settings: {db}')
     
     set_config(db)
 
-    return json.dumps(db)
+    return db
 
 
 @app.callback(Output('settings-out', 'children'),             
@@ -422,17 +450,17 @@ def init_settings(df, n, db):
             html.Div(['Select biomarkers']),
             dcc.Dropdown(list(df), db['biomarkers'],
                          id='biomarkers',
-                         multi=True, persistence=True, persistence_type='local'),
+                         multi=True, persistence=False, persistence_type='local'),
             html.Div(['Select factor columns']),
             dcc.Dropdown(list(df), db['factors'], id='factors',
-                         multi=True, persistence=True, persistence_type='local'),
+                         multi=True, persistence=False, persistence_type='local'),
             html.Div(['Select column with patient ID']),
             dcc.Dropdown(list(df), db['patient_id'], id='pat-id',
-                         persistence=True, persistence_type='local'),
+                         persistence=False, persistence_type='local'),
             html.Div(['Select controls']),
             dcc.Dropdown(db['biomarkers'] + db['controls'], db['controls'],
                          id='controls',
-                         persistence=True, persistence_type='local', multi=True),
+                         persistence=False, persistence_type='local', multi=True),
 
             # auto encode factors output
             html.Div(id='auto-encode-out'),
@@ -549,6 +577,7 @@ def auto_encode(db, df):
     
 )
 def func(n_clicks, df):
+    # replace the stored dataframe with the cached one
     df = load_data()
     return dcc.send_data_frame(df.to_csv, "download.csv")
 
@@ -575,14 +604,14 @@ def dynamic_layout(df, db):
                                 html.Label('Select all factors to show:'),
                                 dcc.Dropdown(db['biomarkers'] + db['factors'],
                                 db['factors'][0], id='dd-pp',
-                                multi=True, persistence=True,
+                                multi=True, persistence=False,
                                              persistence_type='local'),
                     ]), width="auto"),
 
                     dbc.Col(html.Div([
                             html.Label('Select which factor to use for color:'),
                             dcc.Dropdown(db['biomarkers'] + db['factors'],
-                            db['factors'][0], id='color-pp', persistence=True,
+                            db['factors'][0], id='color-pp', persistence=False,
                                          persistence_type='local'),
                     ]), width="auto"),
                     ]),
@@ -604,7 +633,7 @@ def dynamic_layout(df, db):
                                 # DROPDOWN 1
                                 dcc.Dropdown(db['biomarkers'],
                                              db['biomarkers'][0],
-                                             id='1', persistence=True,
+                                             id='1', persistence=False,
                                              persistence_type='local'),
 
 
@@ -616,7 +645,7 @@ def dynamic_layout(df, db):
                               # DROPDOWN 2
                               dcc.Dropdown(db['biomarkers'],
                                            db['biomarkers'][1],
-                                           id='2', persistence=True,
+                                           id='2', persistence=False,
                                            persistence_type='local'),
                           ]), width=3
                         ),
@@ -638,7 +667,7 @@ def dynamic_layout(df, db):
                             html.Div([
                             html.Label('Select grouping factor:'),
                             dcc.Dropdown(db['factors'], id='umap_factor',
-                                         persistence=True,
+                                         persistence=False,
                                          persistence_type='local')
                     ]), width=3)
                     ]),
@@ -675,7 +704,7 @@ def dynamic_layout(df, db):
                         html.Div([
                             html.Label('Select Fixed Effect'),
                             dcc.Dropdown(db['factors'], id='fixed_effect',
-                                         persistence=True,
+                                         persistence=False,
                                          persistence_type='local'),
                         ]), width=3
                     ),
@@ -723,7 +752,7 @@ def dynamic_layout(df, db):
                             # TIME
                             html.Div(['Time']),
                             dcc.Dropdown(db['factors'], id='time',
-                                         persistence=True,
+                                         persistence=False,
                                          persistence_type='local'),
                         ]), width=3
                     ),
@@ -732,7 +761,7 @@ def dynamic_layout(df, db):
                             # EVENT
                             html.Div(['Event']),
                             dcc.Dropdown(db['factors'], id='event',
-                                         persistence=True, persistence_type='local'),
+                                         persistence=False, persistence_type='local'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -743,7 +772,7 @@ def dynamic_layout(df, db):
                                          db['biomarkers'],
                                          id='covariates', multi=True,
                                          style=sldstyle,
-                                         persistence=True, persistence_type='local'),
+                                         persistence=False, persistence_type='local'),
                         ]), width=6
                     ),
                 ], justify='evenly'),

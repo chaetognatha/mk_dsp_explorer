@@ -1,1 +1,1 @@
-{"factors": ["Stage", "Progression", "Tissue_quality", "Vital_status", "WHO_classification"], "biomarkers": ["CD20", "S6"], "controls": ["None"], "patient_id": "Patient_ID", "encode_factors": false, "transform_biomarkers": false, "encoding": "utf-8"}
+{"factors": ["Stage", "Progression", "Tissue_quality", "Vital_status", "WHO_classification"], "biomarkers": ["CD20", "S6"], "controls": ["None"], "patient_id": "Patient_ID", "encode_factors": true, "transform_biomarkers": true, "encoding": "utf-8"}
