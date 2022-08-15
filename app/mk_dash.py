@@ -131,7 +131,7 @@ def get_config():
 def set_config(db):
     config_file = Path('conf.json')
     with config_file.open('w') as f:
-        json.dump(db, f)
+        json.dump(db, f, indent=4)
     if dbg:
         print(f'set_config written to file: {db}')
 
@@ -605,7 +605,7 @@ def dynamic_layout(df, db):
                                 dcc.Dropdown(db['biomarkers'] + db['factors'],
                                 db['factors'][0], id='dd-pp',
                                 multi=True, persistence=False,
-                                             persistence_type='local'),
+                                    persistence_type='local'),
                     ]), width="auto"),
 
                     dbc.Col(html.Div([
