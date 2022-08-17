@@ -382,7 +382,7 @@ def update_config(factor, biomarker, patid,
             print('update_config: no db in memory calling get_config:')
             print(db)
     else: 
-        db = json.loads(db)
+        #db = json.loads(db)
         if dbg:
             print('update_config: db from json:')
             print(db)
