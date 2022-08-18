@@ -450,17 +450,17 @@ def init_settings(df, n, db):
             html.Div(['Select biomarkers']),
             dcc.Dropdown(list(df), db['biomarkers'],
                          id='biomarkers',
-                         multi=True, persistence=False, persistence_type='local'),
+                         multi=True, persistence=True, persistence_type='session'),
             html.Div(['Select factor columns']),
             dcc.Dropdown(list(df), db['factors'], id='factors',
-                         multi=True, persistence=False, persistence_type='local'),
+                         multi=True, persistence=True, persistence_type='session'),
             html.Div(['Select column with patient ID']),
             dcc.Dropdown(list(df), db['patient_id'], id='pat-id',
-                         persistence=False, persistence_type='local'),
+                         persistence=True, persistence_type='session'),
             html.Div(['Select controls']),
             dcc.Dropdown(db['biomarkers'] + db['controls'], db['controls'],
                          id='controls',
-                         persistence=False, persistence_type='local', multi=True),
+                         persistence=True, persistence_type='session', multi=True),
 
             # auto encode factors output
             html.Div(id='auto-encode-out'),
@@ -604,15 +604,15 @@ def dynamic_layout(df, db):
                                 html.Label('Select all factors to show:'),
                                 dcc.Dropdown(db['biomarkers'] + db['factors'],
                                 db['factors'][0], id='dd-pp',
-                                multi=True, persistence=False,
-                                    persistence_type='local'),
+                                multi=True, persistence=True,
+                                    persistence_type='session'),
                     ]), width="auto"),
 
                     dbc.Col(html.Div([
                             html.Label('Select which factor to use for color:'),
                             dcc.Dropdown(db['biomarkers'] + db['factors'],
-                            db['factors'][0], id='color-pp', persistence=False,
-                                         persistence_type='local'),
+                            db['factors'][0], id='color-pp', persistence=True,
+                                         persistence_type='session'),
                     ]), width="auto"),
                     ]),
 
@@ -633,8 +633,8 @@ def dynamic_layout(df, db):
                                 # DROPDOWN 1
                                 dcc.Dropdown(db['biomarkers'],
                                              db['biomarkers'][0],
-                                             id='1', persistence=False,
-                                             persistence_type='local'),
+                                             id='1', persistence=True,
+                                             persistence_type='session'),
 
 
                             ]), width=3
@@ -645,8 +645,8 @@ def dynamic_layout(df, db):
                               # DROPDOWN 2
                               dcc.Dropdown(db['biomarkers'],
                                            db['biomarkers'][1],
-                                           id='2', persistence=False,
-                                           persistence_type='local'),
+                                           id='2', persistence=True,
+                                           persistence_type='session'),
                           ]), width=3
                         ),
                     ]),
@@ -667,8 +667,8 @@ def dynamic_layout(df, db):
                             html.Div([
                             html.Label('Select grouping factor:'),
                             dcc.Dropdown(db['factors'], id='umap_factor',
-                                         persistence=False,
-                                         persistence_type='local')
+                                         persistence=True,
+                                         persistence_type='session')
                     ]), width=3)
                     ]),
                     ]),
@@ -705,8 +705,8 @@ def dynamic_layout(df, db):
                         html.Div([
                             html.Label('Select Fixed Effect'),
                             dcc.Dropdown(db['factors'], id='fixed_effect',
-                                         persistence=False,
-                                         persistence_type='local'),
+                                         persistence=True,
+                                         persistence_type='session'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -753,8 +753,8 @@ def dynamic_layout(df, db):
                             # TIME
                             html.Div(['Time']),
                             dcc.Dropdown(db['factors'], id='time',
-                                         persistence=False,
-                                         persistence_type='local'),
+                                         persistence=True,
+                                         persistence_type='session'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -762,7 +762,7 @@ def dynamic_layout(df, db):
                             # EVENT
                             html.Div(['Event']),
                             dcc.Dropdown(db['factors'], id='event',
-                                         persistence=False, persistence_type='local'),
+                                         persistence=True, persistence_type='session'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -773,7 +773,7 @@ def dynamic_layout(df, db):
                                          db['biomarkers'],
                                          id='covariates', multi=True,
                                          style=sldstyle,
-                                         persistence=False, persistence_type='local'),
+                                         persistence=True, persistence_type='session'),
                         ]), width=6
                     ),
                 ], justify='evenly'),
