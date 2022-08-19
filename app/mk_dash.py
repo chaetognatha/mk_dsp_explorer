@@ -1,4 +1,4 @@
-# Run this app with `python mk_dash.py` and
+# Run this app with `python app/mk_dash.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
 from spatialomics_toolkit import statistics
 from statsmodels.stats.multitest import fdrcorrection as fdr
@@ -78,9 +78,7 @@ class PrettyDict:
 
 def restart():
     """
-    Some things will always have to be read in at the start of the program
-    we need to be able to update this state and perhaps this is the easiest
-    way
+    Not in use atm, but may be useful
     Returns - nothing, this function just restarts the app
     -------
 
@@ -305,7 +303,7 @@ app.layout = html.Div(children=[
                         ),
                     ],
                     id="modal",
-                    is_open=True,
+                    is_open=False,
                     size='lg',
                     fullscreen="lg-down",
                     centered=True,
@@ -347,6 +345,7 @@ def toggle_modal(n1, n2, is_open):
     return not is_open if n1 or n2 else is_open
 
 @app.callback(Output('settings', 'data'),
+              Input("reload", "n_clicks"),
               Input('factors', 'value'),
               Input('biomarkers', 'value'),
               Input('pat-id', 'value'),
@@ -357,7 +356,7 @@ def toggle_modal(n1, n2, is_open):
               State('settings', 'data'),
               prevent_initial_call=True
               )
-def update_config(factor, biomarker, patid, 
+def update_config(n, factor, biomarker, patid, 
                     controls,transbio, encfac, df, db):
     """
 
@@ -434,8 +433,8 @@ def update_config(factor, biomarker, patid,
 
 @app.callback(Output('settings-out', 'children'),             
               Input("reload", "n_clicks"),
+              Input('dataframe', 'data'),
               State('settings', 'data'),
-              State('dataframe', 'data'),
 )
 def init_settings(df, n, db):
     db = get_config()
@@ -840,7 +839,7 @@ def parallel_plot(dd, df, db, c):
                         df[d].unique()
                     )})
         # works well for more than 2 dimensions: px.colors.qualitative.Light24
-            fig = px.parallel_coordinates(df, dimensions=dd,
+            fig = px.parallel_categories(df, dimensions=dd,
                                           color=c,
                                           color_continuous_scale = \
                                               px.colors.diverging.Spectral,
@@ -1070,7 +1069,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, host='127.0.0.1', port='8050', proxy=None,
+    app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
                    dev_tools_ui=None,
                    dev_tools_props_check=None,
                    dev_tools_serve_dev_bundles=None,
