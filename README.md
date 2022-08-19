@@ -4,7 +4,7 @@ It has been designed while working with
 spatially resolved proteomics and transcriptomic data from the GeoMx DSP 
 but will draw
 5 interactive plots on any dataset that you give it. The plots are:
-* A parallel coordinates plot of the selected columns
+* A parallel categories plot of the selected columns
 * A scatter plot of the data (with spearman's rho and p-value)
 * 3D UMAP
 * Volcano plot of the data (with univariate results of a Linear Mixed Model)
@@ -33,12 +33,8 @@ _(if you don't: look for the link to conda docs above!)_
 ```conda env list```
 
 ## Configuration 
-Many things can be done via the settings inside the app, but you should probably start by opening conf.ini and editing it. This is a simple text configuration file which defines e.g a list of biomarkers to use.
-
-Lists are separated with commas eg: "gene,gene2,gene3"
-
-It also includes switches for autoencoding and log2 tranformation so if you dont want categorical columns to be numerically encoded and or you have already log2 transformed your biomarkers, you need to set these to 0, No or False. Default is True.
-
+All settings made in the app are now also written to conf.json, this file can be
+backed up when switching. 
 ## When you are ready you can run the main app by doing:
 ```python app/mk_dash.py```
 
