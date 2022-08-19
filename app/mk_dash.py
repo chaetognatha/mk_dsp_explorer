@@ -718,6 +718,9 @@ def dynamic_layout(df, db):
                         ]), width=3
                     ),
                     dbc.Col(
+                        html.Div(id='dyn-lmm-level')
+                    ),
+                    dbc.Col(
                         html.Div([
                             html.Label('Adjust p-value?'),
                             dcc.RadioItems(
@@ -818,6 +821,23 @@ def dynamic_layout(df, db):
         ])
     else:
         return html.Div(['No DATA (check settings)'])
+
+#DYNAMIC LMM LEVEL BINARIZER
+@app.callback(Output('dyn-lmm-level', 'children'),
+              Input('fixed_effect', 'value'))
+def dyn_level_lmm(fe):
+    df = load_data()
+    db = get_config()
+    if fe:
+        this = [
+                    html.Label('Test this/these level/s (1)'
+                         ' against all others (0)'),
+                    dcc.Dropdown(df[fe].unique(), 'None', id='bin-lvl',
+                    persistence=False, multi=True),
+                    ]
+    else: this = 'Select a fixed effect'
+
+    return this
 
 
 
@@ -941,19 +961,41 @@ def get_umap(factor, min_dist, n_neighbor, df, db):
                Input('default-volcanoplot-input', 'value'),
                Input('dataframe', 'data'),
                State('settings', 'data'),
-               Input('use-fdr', 'value')
+               Input('use-fdr', 'value'),
+               Input('bin-lvl', 'value'),
                ])
-def volcano(fixed_effect, plim, effects, df, db, fdr):
+def volcano(fixed_effect, plim, effects, df, db, fdr, levels):
     fig = {}
     df = load_data()
+    my_title = f'{fixed_effect} as fixed effect'
     if isinstance(df, pd.DataFrame) and fixed_effect:
         db = get_config()
+        if isinstance(levels,list):
+            my_title += ' with '
+            print(type(levels))
+            unique_levels = df[fixed_effect].unique()
+            m = {}
+            exclude = ''
+            #expect levels to be a list
+            for lvl in unique_levels:
+                if lvl in levels:
+                    m[lvl] = 1
+                    my_title += f'{lvl} '
+                else:
+                    m[lvl] = 0
+                    exclude += f'{lvl} '
+            df[fixed_effect] = df[fixed_effect].map(m)
+            my_title += f'vs {exclude}'
+            print('Recoded column temporarily:')
+            print(df[fixed_effect])
+            print('LMM mapping:')
+            print(m)
         my_p = 'FDR' if fdr == 'FDR adj. p' else 'p-values'
         #df = pd.read_json(df)
         # to avoid errors caused by getting inf in neglog10
         if plim == 1:
             plim = 0.9999
-        all_together = f"{fixed_effect}{plim}{effects}{df}{db}{fdr}"
+        all_together = f"{fixed_effect}{plim}{effects}{df}{db}{fdr}{levels}"
         cached_path = cache.joinpath(cache_hash(all_together))
         if cached_path.exists():
             fig = pickle.load(open(cached_path, 'rb'))
@@ -982,7 +1024,7 @@ def volcano(fixed_effect, plim, effects, df, db, fdr):
                 highlight_color='red',
                 col='gray'
             )
-            fig.update_layout(showlegend=False, title='')
+            fig.update_layout(showlegend=False, title=my_title)
             fig.update_xaxes(title='LMM coefficient')
             # add annotation
             for i, p in enumerate(results[my_p]):

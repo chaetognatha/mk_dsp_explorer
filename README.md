@@ -2,13 +2,19 @@
 This is a web app containing exploratory graphs for spatialomics data. 
 It has been designed while working with
 spatially resolved proteomics and transcriptomic data from the GeoMx DSP 
-but will draw
+and will draw
 5 interactive plots on any dataset that you give it. The plots are:
 * A parallel categories plot of the selected columns
 * A scatter plot of the data (with spearman's rho and p-value)
 * 3D UMAP
 * Volcano plot of the data (with univariate results of a Linear Mixed Model)
 * And a univariate Cox regression horizontal bar plot
+
+# Notes on data input
+While the app is robust in reading file formats, it assumes that the uploaded data
+ is formatted so that all information is stored in columns. All biomarker counts
+ need to be in columns and all factors also need to be in columns and one column
+ needs to be some kind of identification to track the source (patient). 
 
 # Quick start:
 The main script is app/mk_dash.py but before running it you need to setup an environment,
