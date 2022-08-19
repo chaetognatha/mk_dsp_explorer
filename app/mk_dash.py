@@ -278,6 +278,8 @@ app.layout = html.Div(children=[
                             ]),
                             
                             dcc.Loading(html.Div(id='settings-out')),
+                            # auto encode factors output
+                            html.Div(id='auto-encode-out'),
                         ]),
                         dbc.Row([
                             dbc.Col(
@@ -381,7 +383,7 @@ def update_config(n, factor, biomarker, patid,
             print('update_config: no db in memory calling get_config:')
             print(db)
     else: 
-        #db = json.loads(db)
+        db = json.loads(db)
         if dbg:
             print('update_config: db from json:')
             print(db)
@@ -426,14 +428,15 @@ def update_config(n, factor, biomarker, patid,
     if dbg:
         print(f'update_config (end): settings: {db}')
     
+    # write to file
     set_config(db)
 
-    return db
+    return json.dumps(db)
 
 
 @app.callback(Output('settings-out', 'children'),             
               Input("reload", "n_clicks"),
-              Input('dataframe', 'data'),
+              State('dataframe', 'data'),
               State('settings', 'data'),
 )
 def init_settings(df, n, db):
@@ -461,8 +464,6 @@ def init_settings(df, n, db):
                          id='controls',
                          persistence=True, persistence_type='session', multi=True),
 
-            # auto encode factors output
-            html.Div(id='auto-encode-out'),
 
         ])
     else:
@@ -483,6 +484,8 @@ def init_settings(df, n, db):
 def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
     if list_of_contents:
         # this is the first step in the event chain
+        if dbg:
+            print('SENDING UPLOAD TO PARSE CONTENT')
         db = get_config()
         # empty cache
         for p in cache.glob('*'):
@@ -490,6 +493,8 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
         # parse contents
         df = parse_contents(list_of_contents, list_of_names, list_of_dates,
                             db['encoding'])
+        if dbg:
+            print('UPLOAD PARSED')
         # encode factors
         if db['encode_factors']:
             if dbg:
@@ -504,6 +509,8 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
             try:
                 df.loc[:, db['biomarkers']] = \
                     df.loc[:, db['biomarkers']].apply(lambda x: np.log2(x))
+                if dbg:
+                    print('TRANSFORM DONE')
             except:
                 # this just means config was not properly edited
                 print('update_df: '
@@ -586,8 +593,9 @@ def func(n_clicks, df):
     Input('btn_lmm', 'n_clicks')
 )
 def get_lmm_res(n):
-    lmm_res = pd.read_csv(cache.joinpath('lmm.csv'))
-    return dcc.send_data_frame(lmm_res.to_csv, "lmm.csv")
+    if n:
+        lmm_res = pd.read_csv(cache.joinpath('lmm.csv'))
+        return dcc.send_data_frame(lmm_res.to_csv, "lmm.csv")
 
 
 # DYNAMIC LAYOUT CALLBACK
@@ -984,6 +992,8 @@ def volcano(fixed_effect, plim, effects, df, db, fdr, levels):
                 else:
                     m[lvl] = 0
                     exclude += f'{lvl} '
+                    n += 1
+
             df[fixed_effect] = df[fixed_effect].map(m)
             my_title += f'vs {exclude}'
             print('Recoded column temporarily:')
