@@ -882,7 +882,7 @@ def scatterplot(value_1, value_2, df, db):
         else:
             # the figure/plot created using the data filtered above
             r = stats.spearmanr(df[value_1], df[value_2], nan_policy='omit')
-            txt = f"Spearman \u03C1:\t{round(r[0], 4)}\tP-value: {r[1]}"
+            txt = f"Spearman \u03C1:\t{round(r[0], 4)}\tp-value: {r[1]}"
             fig = px.scatter(df, x=value_1, y=value_2, title=txt,
                              # trendline='ols',
                              color=db['patient_id'],
