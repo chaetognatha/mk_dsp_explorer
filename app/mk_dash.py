@@ -578,7 +578,16 @@ def auto_encode(db, df):
 def func(n_clicks, df):
     # replace the stored dataframe with the cached one
     df = load_data()
-    return dcc.send_data_frame(df.to_csv, "download.csv")
+    return dcc.send_data_frame(df.to_csv, "data.csv")
+
+#lmm results download
+@app.callback(
+    Output('download-dataframe-lmm', 'data'),
+    Input('btn_lmm', 'n_clicks')
+)
+def get_lmm_res(n):
+    lmm_res = pd.read_csv(cache.joinpath('lmm.csv'))
+    return dcc.send_data_frame(lmm_res.to_csv, "lmm.csv")
 
 
 # DYNAMIC LAYOUT CALLBACK
@@ -601,7 +610,7 @@ def dynamic_layout(df, db):
                 dbc.Row([
                     dbc.Col(html.Div([
                                 html.Label('Select all factors to show:'),
-                                dcc.Dropdown(db['biomarkers'] + db['factors'],
+                                dcc.Dropdown(db['factors'],
                                 db['factors'][0], id='dd-pp',
                                 multi=True, persistence=True,
                                     persistence_type='session'),
@@ -717,6 +726,12 @@ def dynamic_layout(df, db):
                                 inline=False),
                         ]), width=3
                     ),
+                    dbc.Col(
+                        html.Div([
+                            dbc.Button("Download Results", id="btn_lmm"),
+                            dcc.Download(id="download-dataframe-lmm"),
+                        ])
+                    ),
                 ]),
                 html.Div([
                     html.Label('Select p-value limit'),
@@ -806,7 +821,7 @@ def dynamic_layout(df, db):
 
 
 
-######################## Paralell plot callback
+######################## Parallel plot callback
 @app.callback(Output('pp', 'figure'),
               Input('dd-pp', 'value'),
               Input('dataframe', 'data'),
@@ -986,6 +1001,8 @@ def volcano(fixed_effect, plim, effects, df, db, fdr):
                 # resize
 
             pickle.dump(fig, open(cached_path, 'wb'))
+            csv_path = cache.joinpath('lmm.csv')
+            results.to_csv(csv_path,index=False)
 
     return fig
 
@@ -1069,7 +1086,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
+    app.run_server(debug=False, host='127.0.0.1', port='8050', proxy=None,
                    dev_tools_ui=None,
                    dev_tools_props_check=None,
                    dev_tools_serve_dev_bundles=None,
