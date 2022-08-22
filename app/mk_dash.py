@@ -26,6 +26,7 @@ from configparser import ConfigParser
 import os
 import sys
 import json
+import time
 
 # GLOBALS
 
@@ -48,6 +49,19 @@ cache.mkdir(exist_ok=True)
 
 
 # GLOBAL FUNCTIONS
+def debug_log(string):
+    """
+    This function writes a string to the debug log
+    :param string: string to write to log
+    :return: nothing
+    -------
+    """
+    dbgfile = Path('debug.log')
+    with dbgfile.open('a') as f: 
+        f.write(f'{time.asctime(time.localtime())}:\t{string}\n')
+   # if dbg:
+    #    debug_log(string)
+
 def cache_hash(string):
     """
     This little function creates a unique identifier string
@@ -122,7 +136,7 @@ def get_config():
         'encoding': encoding,
     }
     if dbg:
-        print(f'get_config out: {d}')
+        debug_log(f'get_config out: {d}')
 
     return d
 
@@ -131,7 +145,7 @@ def set_config(db):
     with config_file.open('w') as f:
         json.dump(db, f, indent=4)
     if dbg:
-        print(f'set_config written to file: {db}')
+        debug_log(f'set_config written to file: {db}')
 
 def load_data():
     """
@@ -144,9 +158,9 @@ def load_data():
     try:
         df = pd.read_csv('.cache/data.csv')
     except:
-        print('No dataframe found')
+        debug_log('No dataframe found')
     if dbg:
-        print(f'get_data out: {type(df)}')
+        debug_log(f'get_data out: {type(df)}')
     return df
 
 def save_data(df):
@@ -158,7 +172,7 @@ def save_data(df):
     """
     df.to_csv('.cache/data.csv', index=False)
     if dbg:
-        print(f'set_data out: {type(df)}')
+        debug_log(f'set_data out: {type(df)}')
 
 
 def parse_contents(contents, filename, date, enc='utf-8'):
@@ -229,13 +243,13 @@ def parse_contents(contents, filename, date, enc='utf-8'):
 
 
     except Exception as e:
-        print('parse_contents: There was an error reading the uploaded file:\n',
+        debug_log('parse_contents: There was an error reading the uploaded file:\n',
               e)
 
     if dbg:
-        print('parse_contents out:')
-        print(f'df is a {type(df)}')
-        print(df.shape)
+        debug_log('parse_contents out:')
+        debug_log(f'df is a {type(df)}')
+        debug_log(df.shape)
     return df
 
 
@@ -325,13 +339,13 @@ app.layout = html.Div(children=[
     # a user and is ready to be deployed in a situation where
     # several people use it at once
     # dataframe is the main dataframe, it is kept locally
-    dcc.Store(id='dataframe', storage_type='local'),
+    dcc.Store(id='dataframe', storage_type='session'),
     # settings are initialized with conf.ini but are then
     # updated via the settings in the app
     # it is a dictionary
     # settings moved to conf.json
     # keeping this to keep callback alive
-    dcc.Store(id='settings', storage_type='local'),
+    dcc.Store(id='settings', storage_type='session'),
 ], style={'textAlign': 'center'})
 
 
@@ -356,7 +370,7 @@ def toggle_modal(n1, n2, is_open):
               Input('encode-factors', 'value'),
               State('dataframe', 'data'),
               State('settings', 'data'),
-              prevent_initial_call=True
+              #prevent_initial_call=True
               )
 def update_config(n, factor, biomarker, patid, 
                     controls,transbio, encfac, df, db):
@@ -375,59 +389,76 @@ def update_config(n, factor, biomarker, patid,
     -------
 
     """
+    df = load_data()
     if not db:
         # store preset values in a config file
         # be conservative of what to keep here!
         db = get_config()
         if dbg:
-            print('update_config: no db in memory calling get_config:')
-            print(db)
-    else: 
-        db = json.loads(db)
-        if dbg:
-            print('update_config: db from json:')
-            print(db)
+            debug_log('update_config: no db in memory calling get_config:')
+            debug_log(db)
+    else:
+        try :
 
+            db = json.loads(db)
+            if dbg:
+                debug_log('update_config: db from json:')
+                debug_log(db)
+        except Exception as e:
+            debug_log('update_config: error loading json:', e)
+            db = get_config()
+            if dbg:
+                debug_log(e)
+                debug_log('update_config: no db in memory calling get_config:')
+                debug_log(db)
     # check which changed
     if factor:
+        for f in factor:
+            if f not in df.columns:
+                factor.remove(f)
+                debug_log('update_config: factor not in dataframe:', f)
         # update locally stored app settings
         db['factors'] = factor
         if dbg:
-            print(f'update_config: factors: {factor}')
+            debug_log(f'update_config: factors: {factor}')
     if biomarker:
+        for b in biomarker:
+            if b not in df.columns:
+                biomarker.remove(b)
+                debug_log('update_config: biomarker not in dataframe:', b)
         db['biomarkers'] = biomarker
         if dbg:
-            print(f'update_config: biomarkers: {biomarker}')
+            debug_log(f'update_config: biomarkers: {biomarker}')
     if patid:
         db['patient_id'] = patid
         if dbg:
-            print(f'update_config: patient_id: {patid}')
+            debug_log(f'update_config: patient_id: {patid}')
     if controls:
         if db['controls'] == 'None':
             db['controls'] = []
         else:
             db['controls'] = controls
         if dbg:
-            print(f'update_config: controls: {controls}')
+            debug_log(f'update_config: controls: {controls}')
     if transbio == 'Yes':
         db['transform_biomarkers'] = True
         if dbg:
-            print(f'update_config: transform_biomarkers: {transbio}')
+            debug_log(f'update_config: transform_biomarkers: {transbio}')
     else:
         db['transform_biomarkers'] = False
         if dbg:
-            print(f'update_config: transform_biomarkers: {transbio}')
+            debug_log(f'update_config: transform_biomarkers: {transbio}')
     if encfac == 'Yes':
         db['encode_factors'] = True
         if dbg:
-            print(f'update_config: encode_factors: {encfac}')
+            debug_log(f'update_config: encode_factors: {encfac}')
     else:
         db['encode_factors'] = False
         if dbg:
-            print(f'update_config: encode_factors: {encfac}')
+            debug_log(f'update_config: encode_factors: {encfac}')
     if dbg:
-        print(f'update_config (end): settings: {db}')
-    
+        debug_log(f'update_config (end): settings: {db}')
+
     # write to file
     set_config(db)
 
@@ -436,39 +467,49 @@ def update_config(n, factor, biomarker, patid,
 
 @app.callback(Output('settings-out', 'children'),             
               Input("reload", "n_clicks"),
-              State('dataframe', 'data'),
+              Input('dataframe', 'data'),
               State('settings', 'data'),
 )
 def init_settings(df, n, db):
     db = get_config()
     df = load_data()
     if isinstance(df, pd.DataFrame) and db:
+        # cleaning up the settings
+        for factor in db['factors']:
+            if factor not in df.columns:
+                db['factors'].remove(factor)
+                debug_log(f'init_settings: factor {factor} not in df')
+        for biomarker in db['biomarkers']:
+            if biomarker not in df.columns:
+                db['biomarkers'].remove(biomarker)
+                debug_log(f'init_settings: biomarker {biomarker} not in df')
+        set_config(db)
         if dbg:
-            print(f'init_settings: df: {df.shape}')
-            print(f'init_settings: db: {db}')
+            debug_log(f'init_settings: df: {df.shape}')
+            debug_log(f'init_settings: db: {db}')
         # dataframe is stored as json
         
         return html.Div([
             html.Div(['Select biomarkers']),
             dcc.Dropdown(list(df), db['biomarkers'],
                          id='biomarkers',
-                         multi=True, persistence=True, persistence_type='session'),
+                         multi=True, persistence=True, persistence_type='memory'),
             html.Div(['Select factor columns']),
             dcc.Dropdown(list(df), db['factors'], id='factors',
-                         multi=True, persistence=True, persistence_type='session'),
+                         multi=True, persistence=True, persistence_type='memory'),
             html.Div(['Select column with patient ID']),
             dcc.Dropdown(list(df), db['patient_id'], id='pat-id',
-                         persistence=True, persistence_type='session'),
+                         persistence=True, persistence_type='memory'),
             html.Div(['Select controls']),
             dcc.Dropdown(db['biomarkers'] + db['controls'], db['controls'],
                          id='controls',
-                         persistence=True, persistence_type='session', multi=True),
+                         persistence=True, persistence_type='memory', multi=True),
 
 
         ])
     else:
         if dbg:
-            print(f'init_settings: no df or db: {type(df)} {db}')
+            debug_log(f'init_settings: no df or db: {type(df)} {db}')
         return html.Div(['Upload some data!'])
 
 # xxxxxxxxxxxxxxxxxxxxxxxxxxx DATA UPLOAD xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -477,15 +518,14 @@ def init_settings(df, n, db):
               Input('data_upload', 'contents'),
               State('data_upload', 'filename'),
               State('data_upload', 'last_modified'),
-              State('dataframe', 'data'),
               State('settings', 'data'),
               
               )
-def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
+def update_df(list_of_contents, list_of_names, list_of_dates, db):
     if list_of_contents:
         # this is the first step in the event chain
         if dbg:
-            print('SENDING UPLOAD TO PARSE CONTENT')
+            debug_log('SENDING UPLOAD TO PARSE CONTENT')
         db = get_config()
         # empty cache
         for p in cache.glob('*'):
@@ -494,26 +534,26 @@ def update_df(list_of_contents, list_of_names, list_of_dates, df, db):
         df = parse_contents(list_of_contents, list_of_names, list_of_dates,
                             db['encoding'])
         if dbg:
-            print('UPLOAD PARSED')
+            debug_log('UPLOAD PARSED')
         # encode factors
         if db['encode_factors']:
             if dbg:
-                print('update_df: encoding factors')
+                debug_log('update_df: encoding factors')
             # just do all columns
             for factor in df.columns:
                 if df[factor].dtype == 'object' and factor != db['patient_id']:
                     df[factor] = df[factor].astype('category')
         if db['transform_biomarkers']:
             if dbg:
-                print('update_df: transforming biomarkers')
+                debug_log('update_df: transforming biomarkers')
             try:
                 df.loc[:, db['biomarkers']] = \
                     df.loc[:, db['biomarkers']].apply(lambda x: np.log2(x))
                 if dbg:
-                    print('TRANSFORM DONE')
+                    debug_log('TRANSFORM DONE')
             except:
                 # this just means config was not properly edited
-                print('update_df: '
+                debug_log('update_df: '
                       'You may have incorrectly '
                       'specified biomarkers in conf.ini')
         # store in cache
@@ -543,8 +583,13 @@ def auto_encode(db, df):
     db = get_config()
     df = load_data()
     if isinstance(df, pd.DataFrame) and db['encode_factors']:
+                # cleaning up the settings
+        for factor in db['factors']:
+            if factor not in df.columns:
+                db['factors'].remove(factor)
+                debug_log(f'init_settings: factor {factor} not in df')
         if dbg:
-            print('auto_encode: encoding factors')
+            debug_log('auto_encode: encoding factors')
         offenders = []
         #df = pd.read_json(df)
         for factor in db['factors']:
@@ -601,15 +646,25 @@ def get_lmm_res(n):
 # DYNAMIC LAYOUT CALLBACK
 @app.callback(Output('main', 'children'),
               Input('dataframe', 'data'),
-              State('settings', 'data'),
+              Input('reload', 'n_clicks'),
+              Input('settings', 'data'),
               )
-def dynamic_layout(df, db):
+def dynamic_layout(df, n, db):
     db = get_config()
     df = load_data()
     if dbg and isinstance(df, pd.DataFrame):
-        print(f'dynamic_layout: df: {df.shape}')
-        print(f'dynamic_layout: db: {db}')
+        debug_log(f'dynamic_layout: df: {df.shape}')
+        debug_log(f'dynamic_layout: db: {db}')
     if isinstance(df, pd.DataFrame):
+        # cleaning settings again
+        for factor in db['factors']:
+            if factor not in df.columns:
+                db['factors'].remove(factor)
+                debug_log(f'init_settings: factor {factor} not in df')
+        for biomarker in db['biomarkers']:
+            if biomarker not in df.columns:
+                db['biomarkers'].remove(biomarker)
+                debug_log(f'init_settings: biomarker {biomarker} not in df')
         return html.Div([
             html.Div(children=[
                 # Parallel plot
@@ -621,14 +676,14 @@ def dynamic_layout(df, db):
                                 dcc.Dropdown(db['factors'],
                                 db['factors'][0], id='dd-pp',
                                 multi=True, persistence=True,
-                                    persistence_type='session'),
+                                    persistence_type='memory'),
                     ]), width="auto"),
 
                     dbc.Col(html.Div([
                             html.Label('Select which factor to use for color:'),
                             dcc.Dropdown(db['biomarkers'] + db['factors'],
                             db['factors'][0], id='color-pp', persistence=True,
-                                         persistence_type='session'),
+                                         persistence_type='memory'),
                     ]), width="auto"),
                     ]),
 
@@ -650,7 +705,7 @@ def dynamic_layout(df, db):
                                 dcc.Dropdown(db['biomarkers'],
                                              db['biomarkers'][0],
                                              id='1', persistence=True,
-                                             persistence_type='session'),
+                                             persistence_type='memory'),
 
 
                             ]), width=3
@@ -662,7 +717,7 @@ def dynamic_layout(df, db):
                               dcc.Dropdown(db['biomarkers'],
                                            db['biomarkers'][1],
                                            id='2', persistence=True,
-                                           persistence_type='session'),
+                                           persistence_type='memory'),
                           ]), width=3
                         ),
                     ]),
@@ -684,7 +739,7 @@ def dynamic_layout(df, db):
                             html.Label('Select grouping factor:'),
                             dcc.Dropdown(db['factors'], id='umap_factor',
                                          persistence=True,
-                                         persistence_type='session')
+                                         persistence_type='memory')
                     ]), width=3)
                     ]),
                     ]),
@@ -722,7 +777,7 @@ def dynamic_layout(df, db):
                             html.Label('Select Fixed Effect'),
                             dcc.Dropdown(db['factors'], id='fixed_effect',
                                          persistence=True,
-                                         persistence_type='session'),
+                                         persistence_type='memory'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -779,7 +834,7 @@ def dynamic_layout(df, db):
                             html.Div(['Time']),
                             dcc.Dropdown(db['factors'], id='time',
                                          persistence=True,
-                                         persistence_type='session'),
+                                         persistence_type='memory'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -787,7 +842,7 @@ def dynamic_layout(df, db):
                             # EVENT
                             html.Div(['Event']),
                             dcc.Dropdown(db['factors'], id='event',
-                                         persistence=True, persistence_type='session'),
+                                         persistence=True, persistence_type='memory'),
                         ]), width=3
                     ),
                     dbc.Col(
@@ -798,7 +853,7 @@ def dynamic_layout(df, db):
                                          db['biomarkers'],
                                          id='covariates', multi=True,
                                          style=sldstyle,
-                                         persistence=True, persistence_type='session'),
+                                         persistence=True, persistence_type='memory'),
                         ]), width=6
                     ),
                 ], justify='evenly'),
@@ -980,7 +1035,7 @@ def volcano(fixed_effect, plim, effects, df, db, fdr, levels):
         db = get_config()
         if isinstance(levels,list):
             my_title += ' with '
-            print(type(levels))
+            debug_log(type(levels))
             unique_levels = df[fixed_effect].unique()
             m = {}
             exclude = ''
@@ -996,10 +1051,10 @@ def volcano(fixed_effect, plim, effects, df, db, fdr, levels):
 
             df[fixed_effect] = df[fixed_effect].map(m)
             my_title += f'vs {exclude}'
-            print('Recoded column temporarily:')
-            print(df[fixed_effect])
-            print('LMM mapping:')
-            print(m)
+            debug_log('Recoded column temporarily:')
+            debug_log(df[fixed_effect])
+            debug_log('LMM mapping:')
+            debug_log(m)
         my_p = 'FDR' if fdr == 'FDR adj. p' else 'p-values'
         #df = pd.read_json(df)
         # to avoid errors caused by getting inf in neglog10
@@ -1101,7 +1156,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
                             )
                     summary = cph.summary.loc[:, ['exp(coef)', 'p']]
                 except Exception as e:
-                    print(e)
+                    debug_log(e)
                 # in the current version we are taking e ^ coef
                 # which can be turned into a percentual change in hazard
                 # if female = 1, and the hazard(female)/hazard(male) =
@@ -1113,7 +1168,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
                                                    - 1) * 100,
                                       'p-value': float(summary.values[:, 1])}
                 except Exception as e:
-                    print(e)
+                    debug_log(e)
                     # sometimes the model does not converge
                     # setting results to 0 and p to 1
                     results[label] = {'exp(coef)': 0,
@@ -1138,7 +1193,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=False, host='127.0.0.1', port='8050', proxy=None,
+    app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
                    dev_tools_ui=None,
                    dev_tools_props_check=None,
                    dev_tools_serve_dev_bundles=None,

@@ -4,3 +4,7 @@
 app/mk_test.py
 app/spatialomics_toolkit/__pycache__/__init__.cpython-310.pyc
 *.pyc
+debug.log
+conf.ini
+conf.ini
+*.pyc
