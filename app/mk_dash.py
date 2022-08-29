@@ -955,6 +955,7 @@ def parallel_plot(dd, df, db, c):
 def scatterplot(value_1, value_2, df, db):
     fig = {}
     df = load_data()
+    df = df.dropna(subset=[value_1, value_2])
     if isinstance(df, pd.DataFrame) and value_1 and value_2:
         db = get_config()
         #df = pd.read_json(df)
@@ -990,9 +991,13 @@ def scatterplot(value_1, value_2, df, db):
               State('settings', 'data'))
 def get_umap(factor, min_dist, n_neighbor, df, db):
     fig = {}
+    db = get_config()
     df = load_data()
+    df = df.dropna(subset=[factor])
+    # in case biomarkers happen to be infinite
+    df.loc[:,db['biomarkers']].replace([np.inf, -np.inf], np.nan, inplace=True)
+    df = df.dropna(subset=db['biomarkers'])
     if isinstance(df, pd.DataFrame) and factor:
-        db = get_config()
         #df = pd.read_json(df)
         all_together = f"{factor}{min_dist}{n_neighbor}{df}{db}"
         cached_path = cache.joinpath(cache_hash(all_together))
@@ -1030,6 +1035,7 @@ def get_umap(factor, min_dist, n_neighbor, df, db):
 def volcano(fixed_effect, plim, effects, df, db, fdr, levels):
     fig = {}
     df = load_data()
+    df = df.dropna(subset=[fixed_effect])
     my_title = f'{fixed_effect} as fixed effect'
     if isinstance(df, pd.DataFrame) and fixed_effect:
         db = get_config()
@@ -1047,7 +1053,7 @@ def volcano(fixed_effect, plim, effects, df, db, fdr, levels):
                 else:
                     m[lvl] = 0
                     exclude += f'{lvl} '
-                    n += 1
+
 
             df[fixed_effect] = df[fixed_effect].map(m)
             my_title += f'vs {exclude}'
@@ -1193,7 +1199,7 @@ def univariate_cox(covariates, time, event, plim, effects, df, db):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='127.0.0.1', port='8050', proxy=None,
+    app.run_server(debug=False, host='127.0.0.1', port='8050', proxy=None,
                    dev_tools_ui=None,
                    dev_tools_props_check=None,
                    dev_tools_serve_dev_bundles=None,
