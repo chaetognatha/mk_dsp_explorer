@@ -25,7 +25,7 @@ this can be done using [Conda](https://conda.io/docs/user-guide/install/index.ht
 * Use anaconda prompt to run the specified commands!
 
 ### Linux and mac users:
-* You know what to do! :) 
+* You probably know how to use conda and a terminal! :) 
 
 _(if you don't: look for the link to conda docs above!)_
 
@@ -45,7 +45,6 @@ backed up when switching.
 ```python app/mk_dash.py```
 
 # NOTES:
-### It is assumed that all biomarkers are log2 transformed!
 
 Expected data types of the different analyses:
 * Parallel plot - categorical data will be transformed to numbers ordered by sorting
@@ -57,7 +56,7 @@ otherwise colors won't work!
 to not be so sensitive about strings for coloring clusters.
 
 # Acknowledgements:
-Some really top notch python libraries that go into making this app work are:
+Some really top notch software that go into making this app work are:
 
 [Conda](https://conda.io/)
 
