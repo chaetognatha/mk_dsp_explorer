@@ -52,8 +52,7 @@ otherwise colors won't work!
 * LMM - binary or ordinal encoding of the fixed effect, continuous values for biomarkers
 * Cox - binary, ordinal or continuous - estimates a ratio that is influenced by the order of values
 * Correlation - continuous (the idea is to check for correlation of various biomarkers)
-* 3D UMAP - distance is measured for the biomarkers (continuous logscale) could be improved
-to not be so sensitive about strings for coloring clusters.
+* 3D UMAP - distance is measured for the biomarkers, which are logscale continuous
 
 # Acknowledgements:
 Some really top notch software that go into making this app work are:
